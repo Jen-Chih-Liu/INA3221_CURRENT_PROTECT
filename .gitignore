@@ -1,0 +1,17 @@
+# .gitignore 
+.bin
+Objects
+Listings
+RTE
+.obj
+.lst
+.uvopt
+.uvoptx
+.uvguix
+.uvproj.bak
+.uvprojx.bak
+.bak
+.tmp
+.swo
+.swp
+

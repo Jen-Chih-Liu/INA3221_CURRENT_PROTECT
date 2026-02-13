@@ -1,0 +1,20 @@
+--cpu=Cortex-M23
+".\obj\system_m251.o"
+".\obj\ap_startup_m251.o"
+".\obj\main.o"
+".\obj\clk.o"
+".\obj\retarget.o"
+".\obj\sys.o"
+".\obj\fmc.o"
+".\obj\gpio.o"
+".\obj\timer.o"
+".\obj\i2c.o"
+".\obj\usci_i2c.o"
+".\obj\uart.o"
+".\obj\eeprom_sim.o"
+".\obj\i2c_control.o"
+".\obj\monitor_control.o"
+--library_type=microlib --strict --scatter ".\APROM.SCT"
+--map --datacompressor=off --info=inline --entry Reset_Handler --pad=0xFF --summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
+--info sizes --info totals --info unused --info veneers
+--list ".\lst\APROM.map" -o .\obj\APROM.axf
