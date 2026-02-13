@@ -43,6 +43,64 @@ Monitor_Data_T au8MonitorData_1[MONITOR_MAX_CHANNEL];
 uint32_t TimeCounterMonitorUpdate;
 volatile uint8_t u8MonitorFlag;
 
+#if (INA3221_MOCK_TEST == 1)
+/* Mock data generation for testing without hardware */
+void Mock_Update_Monitor_Data_0(void)
+{
+    static uint16_t mock_raw_data = 1000; // A changing value to simulate real data
+    uint16_t data;
+    uint8_t ch;
+
+    for (ch = 0; ch < MONITOR_MAX_CHANNEL; ch++)
+    {
+        if (CH_Enalbe_Monitor_0[ch])
+        {
+            /* Mock Current Calculation */
+            data = ((mock_raw_data * 40 * Shunt_Ratio_Molecular_0[ch]) / (Shunt_Ratio_Denomination_0[ch] * 1000) + 5) / 10;
+            uint16_t u16CurrentOffset = I2C_REG_MONITOR_DATA_OFFSET + (ch * 4);
+            eeprom_ram[u16CurrentOffset + 0] = (uint8_t)(data);
+            eeprom_ram[u16CurrentOffset + 1] = (uint8_t)(data >> 8);
+
+            /* Mock Voltage Calculation */
+            data = ((mock_raw_data / 2) * 8 + 5) / 10; // Use a different value for voltage
+            uint16_t u16VoltageOffset = I2C_REG_MONITOR_DATA_OFFSET + (ch * 4) + 2;
+            eeprom_ram[u16VoltageOffset + 0] = (uint8_t)(data);
+            eeprom_ram[u16VoltageOffset + 1] = (uint8_t)(data >> 8);
+        }
+    }
+    mock_raw_data += 50; // Increment data for next call
+    if (mock_raw_data > 4000) mock_raw_data = 1000;
+}
+
+void Mock_Update_Monitor_Data_1(void)
+{
+    // Use a different static variable for the second monitor to have different data
+    static uint16_t mock_raw_data_1 = 2000; // A changing value to simulate real data
+    uint16_t data;
+    uint8_t ch;
+
+    for (ch = 0; ch < MONITOR_MAX_CHANNEL; ch++)
+    {
+        if (CH_Enalbe_Monitor_1[ch])
+        {
+            /* Mock Current Calculation using Monitor 1's shunt ratios */
+            data = ((mock_raw_data_1 * 40 * Shunt_Ratio_Molecular_1[ch]) / (Shunt_Ratio_Denomination_1[ch] * 1000) + 5) / 10;
+            /* The offset for the second monitor's channels (3, 4, 5) */
+            uint16_t u16CurrentOffset = I2C_REG_MONITOR_DATA_OFFSET + ((ch + MONITOR_MAX_CHANNEL) * 4);
+            eeprom_ram[u16CurrentOffset + 0] = (uint8_t)(data);
+            eeprom_ram[u16CurrentOffset + 1] = (uint8_t)(data >> 8);
+
+            /* Mock Voltage Calculation */
+            data = ((mock_raw_data_1 / 2) * 8 + 5) / 10; // Use a different value for voltage
+            uint16_t u16VoltageOffset = I2C_REG_MONITOR_DATA_OFFSET + ((ch + MONITOR_MAX_CHANNEL) * 4) + 2;
+            eeprom_ram[u16VoltageOffset + 0] = (uint8_t)(data);
+            eeprom_ram[u16VoltageOffset + 1] = (uint8_t)(data >> 8);
+        }
+    }
+    mock_raw_data_1 += 75; // Increment data for next call with a different step
+    if (mock_raw_data_1 > 5000) mock_raw_data_1 = 2000;
+}
+#endif
 /*---------------------------------------------------------------------------------------------------------*/
 /*  I2C0 IRQ Handler                                                                                       */
 /*---------------------------------------------------------------------------------------------------------*/
@@ -257,6 +315,7 @@ void I2C0_MasterTRx(I2C_T *i2c, uint32_t u32Status)
 
 void I2C0_Init(void)
 {
+#if (INA3221_MOCK_TEST == 0)
     /* Unlock protected registers */
     SYS_UnlockReg();
 
@@ -307,6 +366,7 @@ void I2C0_Init(void)
 
     /* I2C function to Master receive/transmit data */
     s_I2C0HandlerFn = I2C0_MasterTRx;
+#endif
 }
 
 /*---------------------------------------------------------------------------------------------------------*/
@@ -542,6 +602,7 @@ void UI2C1_MasterTRx(UI2C_T *ui2c, uint32_t u32Status)
 
 void UI2C1_Init(void)
 {
+#if (INA3221_MOCK_TEST == 0)
     /* Unlock protected registers */
     SYS_UnlockReg();
 
@@ -577,11 +638,17 @@ void UI2C1_Init(void)
 
     /* UI2C function to Master receive/transmit data */
     s_UI2C1HandlerFn = UI2C1_MasterTRx;
+#endif
 }
 
 void Read_Monitor_Data_0(void)
 {
-    if (g_u8GetEndFlag_0 == 1)
+#if (INA3221_MOCK_TEST == 1)
+    /* In mock mode, directly update eeprom_ram with simulated data */
+    Mock_Update_Monitor_Data_0();
+#else
+    /* In real mode, perform I2C communication */
+    if (g_u8GetEndFlag_0 == 1) // Only start a new transaction if the previous one is finished
     {
         /* Initial Status */
         g_u8TargetCH_0 = 0;
@@ -616,11 +683,17 @@ void Read_Monitor_Data_0(void)
             I2C_SET_CONTROL_REG(I2C0, I2C_CTL_STA);
         }
     }
+#endif
 }
 
 void Read_Monitor_Data_1(void)
 {
-    if (g_u8GetEndFlag_1 == 1)
+#if (INA3221_MOCK_TEST == 1)
+    /* In mock mode, directly update eeprom_ram with simulated data */
+    Mock_Update_Monitor_Data_1(); // Call the mock function for the second monitor
+#else
+    /* In real mode, perform I2C communication */
+    if (g_u8GetEndFlag_1 == 1) // Only start a new transaction if the previous one is finished
     {
         /* Initial Status */
         g_u8TargetCH_1 = 0;
@@ -657,4 +730,5 @@ void Read_Monitor_Data_1(void)
             UI2C_SET_CONTROL_REG(UI2C1, UI2C_CTL_STA);
         }
     }
+#endif
 }

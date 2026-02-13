@@ -8,6 +8,9 @@
 #ifndef __Monitor_CONTROL_H
 #define __Monitor_CONTROL_H
 
+/* Set to 1 to enable mock test mode without actual INA3221 hardware */
+//#define INA3221_MOCK_TEST           1
+
 #include <stdint.h>
 #include <NuMicro.h>
 #include "device.h"
