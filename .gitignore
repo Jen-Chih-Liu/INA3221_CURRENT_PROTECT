@@ -1,17 +1,45 @@
-# .gitignore 
-.bin
-Objects
-Listings
-RTE
-.obj
-.lst
-.uvopt
-.uvoptx
-.uvguix
-.uvproj.bak
-.uvprojx.bak
-.bak
-.tmp
-.swo
-.swp
+# .gitignore for Keil MDK Projects
 
+## Build output directories
+# These directories contain intermediate and final build artifacts.
+**/Objects/
+**/Listings/
+**/obj/
+**/lst/
+**/RTE/
+
+## Build output files
+# These are various files generated during the compilation and linking process.
+*.bin
+*.sct
+*.map
+*.axf
+*.elf
+*.hex
+*.lib
+*.lnp
+*.plg
+*.dep
+*.d
+*.o
+*.obj
+*.crf
+*.i
+*.sbr
+*.tra
+
+## Keil project files (user-specific settings)
+# These files store user-specific settings like window positions or debug configurations.
+*.uvopt
+*.uvoptx
+*.uvguix
+*.uvproj.bak
+*.uvprojx.bak
+*.uvgui.bak
+
+## Other temporary, backup, and log files
+*.bak
+*.tmp
+*.swo
+*.swp
+*.build_log.htm
