@@ -41,15 +41,15 @@ PEC: Disabled
 
 1.2 GPIO Pin Definition
 
-|
 
-| Function | Direction | Active Level | Description |
-| I2C_SCL | Open-Drain | - | SMBus Clock |
-| I2C_SDA | Open-Drain | - | SMBus Data |
-| INA_WARNING | Input | Low | 來自兩顆 INA3221 的 Warning Pin (Wired-OR) |
-| LED_ALARM | Output | High | 告警指示燈 (亮起代表異常) |
-| BUZZER | Output | High/PWM | 蜂鳴器控制 |
-| PS_VMON_PGOOD | Output | High | 電源好信號 (Normal=High, Protection=Low) |
+| Function      | Direction  | Active Level | Description                                  |
+|---------------|------------|--------------|----------------------------------------------|
+| I2C_SCL       | Open-Drain | -            | SMBus Clock                                  |
+| I2C_SDA       | Open-Drain | -            | SMBus Data                                   |
+| INA_WARNING   | Input      | Low          | 來自兩顆 INA3221 的 Warning Pin (Wired-OR) |
+| LED_ALARM     | Output     | High         | 告警指示燈 (亮起代表異常)                    |
+| BUZZER        | Output     | High/PWM     | 蜂鳴器控制                                   |
+| PS_VMON_PGOOD | Output     | High         | 電源好信號 (Normal=High, Protection=Low)     |
 
 2. Firmware Logic (功能邏輯)
 
@@ -180,8 +180,8 @@ r 0x4d (i2c address), version(information)
 此指令允許主機更新 `Countdown Duration` 的值，並將其永久寫入 EEPROM。
 
 *   **指令格式**:
-    主機需發送一個 7 位元組的序列。
-    `['U', 'C', 'D', <B0>, <B1>, <B2>, <B3>]`
+    主機需發送一個 8 位元組的序列。
+    `['U','' ,'C', 'D', <B0>, <B1>, <B2>, <B3>]`
 
     *   `'U', 'P', 'C', 'D'`: 固定的 ASCII 指令標頭。
     *   `<B0>` - `<B3>`: 新的倒數時間，單位為 ms，以 32 位元小端序 (Little-Endian) 格式表示。
@@ -286,45 +286,48 @@ MCU 使用 Data Flash 模擬 EEPROM。為確保資料安全性，建議配置於
 
 此區域存放系統參數與資產資料，容量定義為 256 Bytes。
 
-| Address Offset | Field Name | Size (Bytes) | Description |
-| 0x00 - 0x03 | PowerOnCount | 4 | 開機次數 (每次開機 +1) |
-| 0x04 - 0x07 | IMBALANCE_THRESHOLD | 4 | 不平衡判斷門檻值 (mA) |
-| 0x08 - 0x0B | Countdown | 4 | 關機延遲時間 (ms) |
-| 0x0C | swdebounce | 1 | 開關去抖動計數 |
-| 0x0D | LogHead | 1 | Ring Buffer 最新指標 (0~11) |
-| 0x0E - 0x0F | Reserved | 2 | 保留區 |
-| 0x10 - 0x27 | Calib Data | 24 | 6 Channels x (Gain 2B + Offset 2B) |
-| 0x28 - 0xBF | Reserved | 152 | 保留區 |
-| 0xC0 - 0xCF | MFG Date | 16 | 生產日期 (YYYYMMDD) (ASCII) |
-| 0xD0 - 0xDF | Lot ID | 16 | 生產批號 (ASCII) |
-| 0xE0 - 0xEF | Serial Number | 16 | 產品序號 (ASCII) |
+| Address Offset | Field Name          | Size (Bytes) | Description                        |
+|----------------|---------------------|--------------|------------------------------------|
+| 0x00 - 0x03    | PowerOnCount        | 4            | 開機次數 (每次開機 +1)             |
+| 0x04 - 0x07    | IMBALANCE_THRESHOLD | 4            | 不平衡判斷門檻值 (mA)              |
+| 0x08 - 0x0B    | Countdown           | 4            | 關機延遲時間 (ms)                  |
+| 0x0C           | swdebounce          | 1            | 開關去抖動計數                     |
+| 0x0D           | LogHead             | 1            | Ring Buffer 最新指標 (0~11)        |
+| 0x0E - 0x0F    | Reserved            | 2            | 保留區                             |
+| 0x10 - 0x27    | Calib Data          | 24           | 6 Channels x (Gain 2B + Offset 2B) |
+| 0x28 - 0xBF    | Reserved            | 152          | 保留區                             |
+| 0xC0 - 0xCF    | MFG Date            | 16           | 生產日期 (YYYYMMDD) (ASCII)        |
+| 0xD0 - 0xDF    | Lot ID              | 16           | 生產批號 (ASCII)                   |
+| 0xE0 - 0xEF    | Serial Number       | 16           | 產品序號 (ASCII)                   |
 
 
 4.2 EEPROM 2: Event Logs (Page N+1)
 
 此區域為環形緩衝區 (Ring Buffer)，存放最近 12 筆異常事件快照。 總容量 256 Bytes (12 筆 x 20 Bytes = 240 Bytes)。
 
-| Address Offset | Field Name | Size | Description |
-| 0x00 - 0x13 | Log Entry 0 | 20 | 第 0 筆事故紀錄 |
-| 0x14 - 0x27 | Log Entry 1 | 20 | 第 1 筆事故紀錄 |
-| 0x28 - 0x3B | Log Entry 2 | 20 | 第 2 筆事故紀錄 |
-| ... | ... | ... | ... |
-| 0xDC - 0xEF | Log Entry 11 | 20 | 第 11 筆事故紀錄 |
-| 0xF0 - 0xFF | Reserved | 16 | 未使用 |
+| Address Offset | Field Name    | Size | Description          |
+|----------------|---------------|------|----------------------|
+| 0x00 - 0x13    | Log Entry 0   | 20   | 第 0 筆事故紀錄      |
+| 0x14 - 0x27    | Log Entry 1   | 20   | 第 1 筆事故紀錄      |
+| 0x28 - 0x3B    | Log Entry 2   | 20   | 第 2 筆事故紀錄      |
+| ...            | ...           | ...  | ...                  |
+| 0xDC - 0xEF    | Log Entry 11  | 20   | 第 11 筆事故紀錄     |
+| 0xF0 - 0xFF    | Reserved      | 16   | 未使用               |
 
 Log Entry Data Structure (Single Entry - 20 Bytes)
 
-| Byte Offset | Parameter | Size | Description |
-| 0x00 | p_on | 4 Bytes | 發生當下的開機次數 |
-| 0x02 | RunTime | 4 Bytes | 發生當下的系統運行時間 (秒) |
-| 0x06 | Current Ch1 | 2 Bytes | 電流快照 (mA) |
-| 0x08 | Current Ch2 | 2 Bytes | 電流快照 (mA) |
-| 0x0A | Current Ch3 | 2 Bytes | 電流快照 (mA) |
-| 0x0C | Current Ch4 | 2 Bytes | 電流快照 (mA) |
-| 0x0E | Current Ch5 | 2 Bytes | 電流快照 (mA) |
-| 0x10 | Current Ch6 | 2 Bytes | 電流快照 (mA) |
-| 0x12 | Error Code | 1 Byte | 記錄當下 Status (Bit map) |
-| 0x13 | Checksum | 1 Byte | 本筆 Entry (0x00~0x12) 的 Checksum |
+| Byte Offset | Parameter   | Size    | Description                        |
+|-------------|-------------|---------|------------------------------------|
+| 0x00        | p_on        | 4 Bytes | 發生當下的開機次數                 |
+| 0x02        | RunTime     | 4 Bytes | 發生當下的系統運行時間 (秒)        |
+| 0x06        | Current Ch1 | 2 Bytes | 電流快照 (mA)                      |
+| 0x08        | Current Ch2 | 2 Bytes | 電流快照 (mA)                      |
+| 0x0A        | Current Ch3 | 2 Bytes | 電流快照 (mA)                      |
+| 0x0C        | Current Ch4 | 2 Bytes | 電流快照 (mA)                      |
+| 0x0E        | Current Ch5 | 2 Bytes | 電流快照 (mA)                      |
+| 0x10        | Current Ch6 | 2 Bytes | 電流快照 (mA)                      |
+| 0x12        | Error Code  | 1 Byte  | 記錄當下 Status (Bit map)          |
+| 0x13        | Checksum    | 1 Byte  | 本筆 Entry (0x00~0x12) 的 Checksum |
 
 5. Flash Memory Configuration & Boot Sequence
 
@@ -336,10 +339,11 @@ Total Size: 64 KB (0x10000 Bytes)
 
 Data EEPROM Reserved: 10 KB (Located at end of Flash)
 
-| Memory Region | Start Address | End Address | Size | Function |
-| APROM (Code) | 0x0000_0000 | 0x0000_D7FB | 54 KB - 4B | 韌體程式碼存放區 |
-| APROM Checksum | 0x0000_D7FC | 0x0000_D7FF | 4 Bytes | APROM 完整性檢查碼 (CRC32 or Sum) |
-| Data EEPROM | 0x0000_D800 | 0x0000_FFFF | 10 KB | 模擬 EEPROM 資料區 (Section 4) |
+| Memory Region   | Start Address | End Address   | Size         | Function                          |
+|-----------------|---------------|---------------|--------------|-----------------------------------|
+| APROM (Code)    | 0x0000_0000   | 0x0000_D7FB   | 54 KB - 4B   | 韌體程式碼存放區                  |
+| APROM Checksum  | 0x0000_D7FC   | 0x0000_D7FF   | 4 Bytes      | APROM 完整性檢查碼 (CRC32 or Sum) |
+| Data EEPROM     | 0x0000_D800   | 0x0000_FFFF   | 10 KB        | 模擬 EEPROM 資料區 (Section 4)    |
 
 計算公式：Data EEPROM Start = 64KB (0x10000) - 10KB (0x2800) = 0xD800。 計算公式：Checksum Address = Data EEPROM Start (0xD800) - 4 Bytes = 0xD7FC。
 
