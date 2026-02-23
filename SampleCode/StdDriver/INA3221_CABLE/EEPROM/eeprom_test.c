@@ -6,145 +6,157 @@
 #include "eeprom_test.h"
 
 /* --- 測試組態 --- */
-// 在壓力測試中執行的總寫入次數
-// M251 每頁 512 bytes。每次寫入佔 2 bytes，一頁大約可寫 (512-4)/2 = 254 次。
-// 為了觸發 10 次以上的分頁滾動，我們設定一個較大的值。
 #define STRESS_TEST_TOTAL_WRITES   5000
-
-// 設定為 1 使用隨機位址和資料進行寫入，這對演算法是更嚴苛的考驗。
-// 設定為 0 則使用循序位址和資料。
 #define USE_RANDOM_ACCESS          1
 
-/* --- 輔助函式 --- */
+/* --- 內部輔助函式宣告 --- */
+static void print_progress(int current, int total);
+extern uint32_t Init_EEPROM(EEPROM_Ctx_T *ctx, uint32_t base_addr, uint32_t data_amount, uint32_t use_pages);
+
 static void print_progress(int current, int total)
 {
-    // 大約印 20 次進度
-    if ((current > 0) && (current % (total / 20)) == 0)
+    if ((current > 0) && (current % (total / 10)) == 0)
     {
         printf("... 進度: %d / %d (%d%%)\n", current, total, (current * 100) / total);
     }
 }
 
 /**
-  * @brief  對 eeprom_sim 模組執行全面的壓力測試
-  * @param  ctx: 指向已初始化的 EEPROM context
+  * @brief  對 eeprom_sim 模組執行全面的壓力與邊界測試
+  * @param  ctx: 指向已初始化的主 EEPROM context
   * @return 0 代表成功, 其他值為錯誤碼
   */
 int eeprom_stress_test(EEPROM_Ctx_T *ctx)
 {
-    // "黃金樣本"緩衝區，存放在 SRAM 中，用於比對。
-    uint8_t golden_buffer[Max_Amount_of_Data];
-    uint8_t read_buffer[Max_Amount_of_Data];
-    uint32_t i;
-    uint32_t ret;
+    uint8_t golden_buffer[255];
+    uint8_t read_buffer[255];
+    uint32_t i, ret;
     uint16_t start_cycle_count, end_cycle_count;
 
-    printf("\n--- 開始 EEPROM 壓力測試 ---\n");
+    printf("\n============================================\n");
+    printf("--- 開始 EEPROM 綜合性自動化測試 ---\n");
+    printf("============================================\n");
     printf("EEPROM 大小: %ld bytes\n", ctx->Amount_of_Data);
     printf("Flash 分頁數: %ld\n", ctx->Amount_Pages);
-    printf("總寫入次數: %d\n", STRESS_TEST_TOTAL_WRITES);
 
     /* --- Phase 1: 初始資料完整性檢查 --- */
-    printf("\n[Phase 1] 初始資料完整性檢查...\n");
-    // 在黃金樣本中建立一組已知的初始狀態
-    for (i = 0; i < ctx->Amount_of_Data; i++)
-    {
-        golden_buffer[i] = (uint8_t)i;
+    printf("\n[Phase 1] 初始寫入與基礎讀取測試...\n");
+    for (i = 0; i < ctx->Amount_of_Data; i++) {
+        golden_buffer[i] = (uint8_t)(i ^ 0xAA); // 使用稍微複雜的 Pattern
     }
 
-    printf("寫入初始資料...\n");
     ret = Write_EEPROM(ctx, 0, golden_buffer, ctx->Amount_of_Data);
-    if (ret != 0)
-    {
-        printf("錯誤: Write_EEPROM 在初始寫入時失敗! 錯誤碼: %ld\n", ret);
+    if (ret != 0) {
+        printf("錯誤: Phase 1 初始寫入失敗! 錯誤碼: %ld\n", ret);
+		while(1);
         return -1;
     }
 
-    printf("讀回並驗證...\n");
     ret = Read_EEPROM(ctx, 0, read_buffer, ctx->Amount_of_Data);
-    if (ret != 0)
-    {
-        printf("錯誤: Read_EEPROM 在初始讀取時失敗! 錯誤碼: %ld\n", ret);
-        return -2;
+    if (memcmp(golden_buffer, read_buffer, ctx->Amount_of_Data) != 0) {
+        printf("錯誤: Phase 1 初始寫入後資料不匹配!\n");
+        while(1);
+		return -1;
     }
+    printf("=> Phase 1 通過.\n");
 
-    if (memcmp(golden_buffer, read_buffer, ctx->Amount_of_Data) != 0)
-    {
-        printf("錯誤: 初始寫入後資料不匹配!\n");
-        return -3;
-    }
-    printf("Phase 1 通過.\n");
-
-    /* --- Phase 2: 分頁滾動與寫入壓力測試 --- */
-    printf("\n[Phase 2] 開始進行包含分頁滾動的壓力測試...\n");
+    /* --- Phase 2: 分頁滾動與隨機寫入壓力測試 --- */
+    printf("\n[Phase 2] 進行 %d 次隨機寫入與分頁滾動測試...\n", STRESS_TEST_TOTAL_WRITES);
     start_cycle_count = Get_Cycle_Counter(ctx);
-    printf("初始抹寫次數計數: %u\n", start_cycle_count);
 
     for (i = 0; i < STRESS_TEST_TOTAL_WRITES; i++)
     {
-        uint8_t index;
-        uint8_t data;
+        uint8_t index = rand() % ctx->Amount_of_Data;
+        uint8_t data = rand() % 256;
 
-#if USE_RANDOM_ACCESS
-        index = rand() % ctx->Amount_of_Data;
-        data = rand() % 256;
-#else
-        index = i % ctx->Amount_of_Data;
-        data = (i & 0xFF);
-#endif
-
-        // 寫入單一位元組，這是被測試的核心操作
         ret = Write_Data(ctx, index, data);
-        if (ret != 0)
-        {
-            printf("錯誤: Write_Data 在第 %ld 次寫入時失敗! 錯誤碼: %ld\n", i, ret);
-            return -4;
+        if (ret != 0) {
+            printf("錯誤: Phase 2 第 %ld 次寫入失敗! 錯誤碼: %ld\n", i, ret);
+			while(1);
+            return -2;
         }
-
-        // 同步更新我們在 SRAM 中的黃金樣本
-        golden_buffer[index] = data;
-
+        golden_buffer[index] = data; // 同步黃金樣本
         print_progress(i, STRESS_TEST_TOTAL_WRITES);
     }
-    printf("... 進度: %d / %d (100%%)\n", STRESS_TEST_TOTAL_WRITES, STRESS_TEST_TOTAL_WRITES);
-    printf("壓力寫入完成.\n");
-
+    
     end_cycle_count = Get_Cycle_Counter(ctx);
-    printf("結束時抹寫次數計數: %u\n", end_cycle_count);
-    printf("期間發生分頁滾動 (Page Rollovers): %u 次\n", end_cycle_count - start_cycle_count);
+    printf("=> 發生分頁滾動 (Page Rollovers): %u 次\n", end_cycle_count - start_cycle_count);
 
-    /* --- Phase 3: 最終資料驗證 --- */
-    printf("\n[Phase 3] 最終資料驗證...\n");
+    // Phase 2 最終驗證
+    Read_EEPROM(ctx, 0, read_buffer, ctx->Amount_of_Data);
+    if (memcmp(golden_buffer, read_buffer, ctx->Amount_of_Data) != 0) {
+        printf("錯誤: Phase 2 壓力測試後資料不匹配!\n");
+		while(1);
+        return -2;
+    }
+    printf("=> Phase 2 通過.\n");
+
+
+    /* --- Phase 3: 相同資料寫入優化測試 --- */
+    printf("\n[Phase 3] 測試寫入相同資料時的優化機制...\n");
+    uint32_t cursor_before = ctx->Current_Cursor;
+    uint32_t page_before = ctx->Current_Valid_Page;
+    
+    // 寫入與原本完全相同的資料
+    ret = Write_Data(ctx, 5, golden_buffer[5]); 
+    if (ret != 0) return -3;
+
+    if (ctx->Current_Cursor != cursor_before || ctx->Current_Valid_Page != page_before) {
+        printf("錯誤: 寫入相同資料卻消耗了 Flash 空間！游標發生了移動。\n");
+		while(1);
+        return -3;
+    }
+    printf("=> Phase 3 通過 (游標未移動，優化生效).\n");
+
+
+    /* --- Phase 4: 邊界條件與錯誤防護測試 (Error Injection) --- */
+    printf("\n[Phase 4] 邊界條件與越界存取防護測試...\n");
+    
+    // 測試 1: 寫入越界 index
+    ret = Write_Data(ctx, ctx->Amount_of_Data, 0xFF);
+    if (ret == 0) {
+        printf("錯誤: 越界寫入 Write_Data 沒有被攔截!\n");
+		while(1);
+        return -4;
+    }
+
+    // 測試 2: Read_EEPROM 長度越界
+    ret = Read_EEPROM(ctx, ctx->Amount_of_Data - 1, read_buffer, 2);
+    if (ret == 0) {
+        printf("錯誤: 越界讀取 Read_EEPROM 沒有被攔截!\n");
+		while(1);
+        return -4;
+    }
+    printf("=> Phase 4 通過 (防護機制正常作動).\n");
+
+
+    /* --- Phase 5: 軟體重啟 / 資料重建測試 (Re-initialization) --- */
+    /* 注意：為了避免再次呼叫 Init_EEPROM 消耗掉 gs_u8AllocatedCount，
+       建議你的 Init_EEPROM 加入判斷：
+       if (ctx->Written_Data == NULL) { 申請記憶體... } 
+       這裡我們模擬系統重啟，重新呼叫 Init_EEPROM 解析 Flash。
+    */
+    printf("\n[Phase 5] 模擬系統斷電重啟與資料重建測試...\n");
+    
+    // 故意將 SRAM 緩衝區清空為 0x00，模擬斷電遺失資料
+    memset(ctx->Written_Data, 0x00, ctx->Amount_of_Data);
+    
+    // 重新初始化 (請確保你的 Init_EEPROM 支持同一個實例重複初始化不漏 Memory)
+    printf("執行重新初始化 (從 Flash 重建 SRAM)...\n");
+    Init_EEPROM(ctx, ctx->Flash_BaseAddr, ctx->Amount_of_Data, ctx->Amount_Pages);
+
+    // 重建後驗證是否與黃金樣本一致
     ret = Read_EEPROM(ctx, 0, read_buffer, ctx->Amount_of_Data);
-    if (ret != 0)
-    {
-        printf("錯誤: Read_EEPROM 在最終讀取時失敗! 錯誤碼: %ld\n", ret);
+    if (memcmp(golden_buffer, read_buffer, ctx->Amount_of_Data) != 0) {
+        printf("錯誤: Phase 5 模擬重啟後，解析 Flash 恢復的資料不正確!\n");
+		while(1);
         return -5;
     }
+    printf("=> Phase 5 通過 (資料從 Flash 成功無損恢復).\n");
 
-    if (memcmp(golden_buffer, read_buffer, ctx->Amount_of_Data) != 0)
-    {
-        printf("錯誤: 壓力測試後資料不匹配!\n");
-        int mismatches = 0;
-        for (i = 0; i < ctx->Amount_of_Data; i++)
-        {
-            if (golden_buffer[i] != read_buffer[i])
-            {
-                if (mismatches < 20) // 只印出前 20 個錯誤
-                {
-                    printf("  不匹配位址 %ld: 應為 0x%02X, 讀到 0x%02X\n", i, golden_buffer[i], read_buffer[i]);
-                }
-                mismatches++;
-            }
-        }
-        printf("總共發現 %d 個不匹配的資料\n", mismatches);
-        return -6;
-    }
-    printf("Phase 3 通過.\n");
-
-    printf("\n--- EEPROM 壓力測試成功結束 ---\n");
-    printf("\n[Phase 4] 手動測試: 現在可以在程式執行期間隨時對 MCU 進行斷電再上電, \n");
-    printf("然後重新執行測試。如果 Phase 1 仍然通過, 代表掉電復原功能正常。\n");
-
+    printf("\n============================================\n");
+    printf("=> 所有 EEPROM 測試皆成功通過！\n");
+    printf("============================================\n");
+    
     return 0; // 成功
 }

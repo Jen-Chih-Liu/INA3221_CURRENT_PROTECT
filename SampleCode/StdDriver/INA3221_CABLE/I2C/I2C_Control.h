@@ -41,9 +41,9 @@ extern uint8_t Data_Get_Power_Info[DATA_LEN_GET_POWER_INFO];
 
 /*-------------------------------------------------------------*/
 typedef void (*I2C_FUNC)(I2C_T *i2c, uint32_t u32Status);
-static I2C_FUNC s_I2C1HandlerFn = NULL;
+static I2C_FUNC s_I2C0HandlerFn = NULL;
 
-void I2C1_Init(void);
+void I2C0_Init(void);
 /*-------------------------------------------------------------*/
 
 #endif  /* __I2C_CONTROL_H */

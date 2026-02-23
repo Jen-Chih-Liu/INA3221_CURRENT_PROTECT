@@ -15,6 +15,7 @@
 #include "Monitor_Control.h"
 #include "eeprom_sim.h"
 #include "i2c_eeprom_sim.h"
+
 #define FW_version 0x01
 #define FLASH_END_ADDR      0x10000
 #define EEPROM_BLOCK_SIZE   (5 * 1024) 
@@ -59,6 +60,7 @@ CalibData_T g_CalibData;
 
 void SYS_Init(void)
 {
+      SYS_UnlockReg();
     /*---------------------------------------------------------------------------------------------------------*/
     /* Init System Clock                                                                                       */
     /*---------------------------------------------------------------------------------------------------------*/
@@ -73,6 +75,7 @@ void SYS_Init(void)
 
     /* Update the Variable SystemCoreClock */
     SystemCoreClockUpdate();
+      SYS_LockReg();
 }
 
 void SysTick_Initial(void)
@@ -294,7 +297,7 @@ static void Init_App_Setting_U8(EEPROM_Ctx_T *ctx, uint32_t offset, uint8_t *val
 
 void initial_eeprom_ram(void)
 {
-  eeprom_ram[0xf0]=FW_version; //fw verison
+ eeprom_ram[0xf0]=FW_version; //fw verison
  eeprom_ram[0xf1]='M';
  eeprom_ram[0xf2]='2';
  eeprom_ram[0xf3]='5';
@@ -322,15 +325,14 @@ void Event_Log_Handler(void);
 void Peripherals_Init(void)
 {
     initial_eeprom_ram();
-
+   LED_ALARM_PORT->DOUT &= ~LED_ALARM_PIN; // Turn off LED initially
+    BUZZER_PORT->DOUT &= ~BUZZER_PIN;     // Turn off Buzzer initially
+    PS_PGOOD_PORT->DOUT &= ~PS_PGOOD_PIN;   // Set PGOOD to low (Normal) initially
     /* Configure protection GPIOs */
     GPIO_SetMode(LED_ALARM_PORT, LED_ALARM_PIN, GPIO_MODE_OUTPUT);
     GPIO_SetMode(BUZZER_PORT, BUZZER_PIN, GPIO_MODE_OUTPUT);
-    PS_PGOOD_PORT->DOUT &= ~PS_PGOOD_PIN;   // Set PGOOD to low (Normal) initially
     GPIO_SetMode(PS_PGOOD_PORT, PS_PGOOD_PIN, GPIO_MODE_OUTPUT);
-    LED_ALARM_PORT->DOUT &= ~LED_ALARM_PIN; // Turn off LED initially
-    BUZZER_PORT->DOUT &= ~BUZZER_PIN;     // Turn off Buzzer initially
-    
+ 
     // Configure INA_WARNING pin as input and enable falling edge interrupt
     GPIO_SetMode(INA_WARNING_PORT, INA_WARNING_PIN, GPIO_MODE_INPUT);
     GPIO_EnableInt(INA_WARNING_PORT, INA_WARNING_PIN, GPIO_INT_FALLING);
@@ -339,8 +341,12 @@ void Peripherals_Init(void)
     GPIO_SET_DEBOUNCE_TIME(GPIO_DBCTL_DBCLKSRC_HCLK,GPIO_DBCTL_DBCLKSEL_1024); // Example debounce time (1024 * HCLK_CLK / 1000)
     GPIO_ENABLE_DEBOUNCE(INA_WARNING_PORT, INA_WARNING_PIN);
 
-    /* Init I2C0 for get monitor data */
+	
+	/* Init I2C0 for communication */
     I2C0_Init();
+	
+    /* Init I2C1 for get monitor data */
+    I2C1_Init();
 
     /* Init UI2C1 for get monitor data */
     UI2C1_Init();
@@ -624,7 +630,28 @@ void Event_Log_Handler(void)
             Write_EEPROM(&eeprom_user, EE_OFFSET_SERIAL_NUMBER, g_au8SerialNumber, EEPROM_SERIAL_NUMBER_SIZE);
         }
 }
-
+void uart_init(void)
+{
+    SYS_UnlockReg();
+    /* Enable UART0 module clock */
+    CLK_EnableModuleClock(UART0_MODULE);
+    
+    /* Enable GPIO clock */
+    CLK_EnableModuleClock(GPB_MODULE);
+    /* Select UART clock source from HIRC */
+    CLK_SetModuleClock(UART0_MODULE, CLK_CLKSEL1_UART0SEL_HIRC, CLK_CLKDIV0_UART0(1));
+  
+    /*---------------------------------------------------------------------------------------------------------*/
+    /* Init I/O Multi-function                                                                                 */
+    /*---------------------------------------------------------------------------------------------------------*/
+    
+        /* Reset IP */
+    SYS_ResetModule(UART0_RST);
+    /* Configure UART0 and set UART0 Baudrate */
+    UART_Open(UART0, 115200);
+    SYS_LockReg();
+}
+extern int eeprom_stress_test(EEPROM_Ctx_T *ctx);
 /*---------------------------------------------------------------------------------------------------------*/
 /*  Main Function                                                                                          */
 /*---------------------------------------------------------------------------------------------------------*/
@@ -637,9 +664,13 @@ int32_t main(void)
     SYS_Init();
 
     /* Lock protected registers */
-    SYS_LockReg();
-
+  
+#if  eeprom_mock_test
+Init_EEPROM(&eeprom_system, EEPROM_1_BASE, 255, EEPROM_PAGES);
+eeprom_stress_test(&eeprom_system);
+#else	
     /* Initialize hardware and load configuration */
+
     Peripherals_Init();
     Config_Load();
 
@@ -651,6 +682,8 @@ int32_t main(void)
         Event_Log_Handler();
        
     }
+#endif
+while(1);
 }
 
 /*** (C) COPYRIGHT 2016 Nuvoton Technology Corp. ***/

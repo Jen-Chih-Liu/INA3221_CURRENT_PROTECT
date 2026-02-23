@@ -1,4 +1,5 @@
 MCU Firmware Specification (v1.2)
+# M251 I2C Master Test for Custom Slave Device
 
 版本: v1.2
 日期: 2026-02-09
@@ -18,13 +19,19 @@ Power: 3.3V
 
 Sensor: Texas Instruments INA3221 (x2)
 
-INA_A (Ch 1-3): I2C0 Addr 0x40 (A0=GND)
+| Function        | Pin      | Description                               |
+|-----------------|----------|-------------------------------------------|
+| `LED_ALARM`     | `PB.15`  | Alarm indicator LED                       |
+| `BUZZER`        | `PB.5`   | Audible alarm buzzer                      |
+| `INA_WARNING`   | `PC.4`   | Hardware warning input from INA3221       |
+| `PS_PGOOD`      | `PF.3`   | Power Good signal output to power supply  |
 
+INA_A (Ch 1-3): I2C1 Addr 0x40 (A0=GND)
 INA_B (Ch 4-6): USCI-I2C1 Addr 0x40 (A0=GND)
 
 Function: 監控 6 路 12V 輸出的 Bus Voltage 與 Shunt Voltage。
 
-Communication: I2C/SMBus Slave Interface I2C1
+Communication: I2C/SMBus Slave Interface I2C0
 
 Target Address: 0x4d (8-bit: 0x9A)
 
@@ -82,6 +89,7 @@ Status Register: Bit 3 (Imbalance) Set to 1.
 C. Protection 2: HW Warning (INA3221 硬體中斷)
 
 觸發條件:
+600W Limit, 50A 平均分配，每個通道的警告上限設定為 8.33A
 
 任一 INA3221 偵測到數值超過其內部設定的 Limit (透過 MCU 初始化時設定)，拉低 INA_WARNING Pin。
 

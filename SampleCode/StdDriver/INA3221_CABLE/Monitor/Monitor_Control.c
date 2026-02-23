@@ -9,7 +9,7 @@
 /*!<Includes */
 #include "device.h"
 #include "NuMicro.h"
-#include "I2C_Control.h"
+//#include "I2C_Control.h"
 #include "Monitor_Control.h"
 
 extern uint8_t volatile eeprom_ram[256];
@@ -102,9 +102,9 @@ void Mock_Update_Monitor_Data_1(void)
 }
 #endif
 /*---------------------------------------------------------------------------------------------------------*/
-/*  I2C0 IRQ Handler                                                                                       */
+/*  I2C1 IRQ Handler                                                                                       */
 /*---------------------------------------------------------------------------------------------------------*/
-void I2C0_Error_Hanlder(I2C_T *i2c)
+void I2C1_Error_Hanlder(I2C_T *i2c)
 {
     uint8_t i;
 
@@ -124,30 +124,30 @@ void I2C0_Error_Hanlder(I2C_T *i2c)
     g_u8GetErrorFlag_0 = 1;
 }
 
-void I2C0_IRQHandler(void)
+void I2C1_IRQHandler(void)
 {
     uint32_t u32Status;
 
-    u32Status = I2C_GET_STATUS(I2C0);
+    u32Status = I2C_GET_STATUS(I2C1);
 
-    if (I2C_GET_TIMEOUT_FLAG(I2C0))
+    if (I2C_GET_TIMEOUT_FLAG(I2C1))
     {
-        /* Clear I2C0 Timeout Flag */
-        I2C_ClearTimeoutFlag(I2C0);
+        /* Clear I2C1 Timeout Flag */
+        I2C_ClearTimeoutFlag(I2C1);
 
         if (g_u8GetEndFlag_0 != 1)
         {
-            I2C0_Error_Hanlder(I2C0);
+            I2C1_Error_Hanlder(I2C1);
 
-            I2C_Close(I2C0);
-            I2C0_Init();
+            I2C_Close(I2C1);
+            I2C1_Init();
         }
     }
     else
     {
-        if (s_I2C0HandlerFn != NULL)
+        if (s_I2C1HandlerFn != NULL)
         {
-            s_I2C0HandlerFn(I2C0, u32Status);
+            s_I2C1HandlerFn(I2C1, u32Status);
         }
     }
 }
@@ -155,7 +155,7 @@ void I2C0_IRQHandler(void)
 /*---------------------------------------------------------------------------------------------------------*/
 /*  I2C TRx Callback Function                                                                              */
 /*---------------------------------------------------------------------------------------------------------*/
-void I2C0_MasterTRx(I2C_T *i2c, uint32_t u32Status)
+void I2C1_MasterTRx(I2C_T *i2c, uint32_t u32Status)
 {
     uint8_t sign;
     uint16_t data;
@@ -184,7 +184,7 @@ void I2C0_MasterTRx(I2C_T *i2c, uint32_t u32Status)
     {
         I2C_SET_CONTROL_REG(i2c, I2C_CTL_STO_SI);
 
-        I2C0_Error_Hanlder(i2c);
+        I2C1_Error_Hanlder(i2c);
     }
     else if (u32Status == 0x28)                 /* DATA has been transmitted and ACK has been received */
     {
@@ -198,7 +198,7 @@ void I2C0_MasterTRx(I2C_T *i2c, uint32_t u32Status)
     {
         I2C_SET_CONTROL_REG(i2c, I2C_CTL_STO_SI);
 
-        I2C0_Error_Hanlder(i2c);
+        I2C1_Error_Hanlder(i2c);
     }
     else if (u32Status == 0x10)                 /* Repeat START has been transmitted and prepare SLA+R */
     {
@@ -226,7 +226,7 @@ void I2C0_MasterTRx(I2C_T *i2c, uint32_t u32Status)
     {
         I2C_SET_CONTROL_REG(i2c, I2C_CTL_STO_SI);
 
-        I2C0_Error_Hanlder(i2c);
+        I2C1_Error_Hanlder(i2c);
     }
     else if (u32Status == 0x50)                 /* DATA has been received and ACK has been returned */
     {
@@ -309,63 +309,70 @@ void I2C0_MasterTRx(I2C_T *i2c, uint32_t u32Status)
     {
         I2C_SET_CONTROL_REG(i2c, I2C_CTL_STO_SI);
 
-        I2C0_Error_Hanlder(i2c);
+        I2C1_Error_Hanlder(i2c);
     }
 }
 
-void I2C0_Init(void)
+void I2C1_Init(void)
 {
 #if (INA3221_MOCK_TEST == 0)
     /* Unlock protected registers */
     SYS_UnlockReg();
 
-    /* Enable I2C0 module clock */
-    CLK_EnableModuleClock(I2C0_MODULE);
+    /* Enable I2C1 module clock */
+    CLK_EnableModuleClock(I2C1_MODULE);
 
     /*---------------------------------------------------------------------------------------------------------*/
     /* Init I/O Multi-function                                                                                 */
     /*---------------------------------------------------------------------------------------------------------*/
-    /* Set PC multi-function pins for I2C0 SDA and SCL */
-    SYS->GPC_MFPL = (SYS->GPC_MFPL & ~(SYS_GPC_MFPL_PC0MFP_Msk | SYS_GPC_MFPL_PC1MFP_Msk)) | \
-                    (SYS_GPC_MFPL_PC0MFP_I2C0_SDA | SYS_GPC_MFPL_PC1MFP_I2C0_SCL);
-    PC->SMTEN |= GPIO_SMTEN_SMTEN0_Msk | GPIO_SMTEN_SMTEN1_Msk;
+    /* Set PC multi-function pins for I2C1 SDA and SCL */
+    SYS->GPA_MFPL = (SYS->GPA_MFPL & ~(SYS_GPA_MFPL_PA2MFP_Msk | SYS_GPA_MFPL_PA3MFP_Msk)) | \
+                    (SYS_GPA_MFPL_PA2MFP_I2C1_SDA | SYS_GPA_MFPL_PA3MFP_I2C1_SCL);
+    PA->SMTEN |= GPIO_SMTEN_SMTEN2_Msk | GPIO_SMTEN_SMTEN3_Msk;
     /* Open I2C module and set bus clock */
-    I2C_Open(I2C0, SPEED_MONIOR_0_BUS);
+    I2C_Open(I2C1, SPEED_MONIOR_0_BUS);
 
     //initial ina3221 sample 16
     uint8_t data[2];
-    data[0] = (ina3221_config>>8)&0xff;//0X7A;
-    data[1] = (ina3221_config)&0xff;//0X47;
-
+    data[0] = (ina3221_config>>8)&0xff;
+    data[1] = (ina3221_config)&0xff;
+    I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X0);
     //wait i2c stop finish.
-    I2C_WriteMultiBytes(I2C0, ADDRESS_MONIOR_0_7BIT, data, 2);
-    unsigned int u32TimeOutCount = SystemCoreClock;
+    I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
+   
+//Warning-Alert Limit
 
-    while ((I2C0)->CTL0 & I2C_CTL0_STO_Msk)
-    {
-        u32TimeOutCount--;
+    data[0] = (ina3221_Warning_Alert_Limit>>8)&0xff;
+    data[1] = (ina3221_Warning_Alert_Limit)&0xff;
+    I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X0A);
+    I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
 
-        if (u32TimeOutCount == 0)
-        {
-            break;
-        }
-    }
 
+    data[0] = (ina3221_Warning_Alert_Limit>>8)&0xff;
+    data[1] = (ina3221_Warning_Alert_Limit)&0xff;
+    I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X0C);
+    I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
+
+
+    data[0] = (ina3221_Warning_Alert_Limit>>8)&0xff;;
+    data[1] = (ina3221_Warning_Alert_Limit)&0xff;
+    I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X0E);
+    I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
 
 
     /* Enable I2C interrupt */
-    I2C_EnableInt(I2C0);
-    NVIC_EnableIRQ(I2C0_IRQn);
-    NVIC_SetPriority(I2C0_IRQn, INT_PRIORITY_NORMAL);
+    I2C_EnableInt(I2C1);
+    NVIC_EnableIRQ(I2C1_IRQn);
+    NVIC_SetPriority(I2C1_IRQn, INT_PRIORITY_NORMAL);
 
     /* Add hold time */
-    //    I2C0->TMCTL = 0x02 << I2C_TMCTL_HTCTL_Pos;
+    //    I2C1->TMCTL = 0x02 << I2C_TMCTL_HTCTL_Pos;
 
     /* Lock protected registers */
     SYS_LockReg();
 
     /* I2C function to Master receive/transmit data */
-    s_I2C0HandlerFn = I2C0_MasterTRx;
+    s_I2C1HandlerFn = I2C1_MasterTRx;
 #endif
 }
 
@@ -624,8 +631,27 @@ void UI2C1_Init(void)
     uint8_t data[2];
     data[0] = (ina3221_config>>8)&0xff;//0X7A;
     data[1] = (ina3221_config)&0xff;//0X47;
+    UI2C_WriteByte(UI2C1, ADDRESS_MONIOR_0_7BIT, 0X0);
+    UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
 
-    //wait i2c stop finish.
+
+//Warning-Alert Limit
+
+    data[0] = (ina3221_Warning_Alert_Limit>>8)&0xff;
+    data[1] = (ina3221_Warning_Alert_Limit)&0xff;
+    UI2C_WriteByte(UI2C1, ADDRESS_MONIOR_0_7BIT, 0X0A);
+    UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
+
+
+    data[0] = (ina3221_Warning_Alert_Limit>>8)&0xff;
+    data[1] = (ina3221_Warning_Alert_Limit)&0xff;
+    UI2C_WriteByte(UI2C1, ADDRESS_MONIOR_0_7BIT, 0X0C);
+    UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
+
+
+    data[0] = (ina3221_Warning_Alert_Limit>>8)&0xff;;
+    data[1] = (ina3221_Warning_Alert_Limit)&0xff;
+    UI2C_WriteByte(UI2C1, ADDRESS_MONIOR_0_7BIT, 0X0E);
     UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
 
     /* Enable UI2C1 interrupt */
@@ -674,13 +700,13 @@ void Read_Monitor_Data_0(void)
         else
         {
             /* Enable Timeout Detect */
-            I2C_EnableTimeout(I2C0, 1);
+            I2C_EnableTimeout(I2C1, 1);
 
             /* Set status */
             g_u8Status_0 = MONITOR_START_I_WRITE;
 
-            /* I2C0 as master sends START signal */
-            I2C_SET_CONTROL_REG(I2C0, I2C_CTL_STA);
+            /* I2C1 as master sends START signal */
+            I2C_SET_CONTROL_REG(I2C1, I2C_CTL_STA);
         }
     }
 #endif

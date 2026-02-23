@@ -10,7 +10,7 @@
 #include "device.h"
 #include "NuMicro.h"
 #include "I2C_Control.h"
-#include "Monitor_Control.h"
+//#include "Monitor_Control.h"
 #include "string.h"
 #include "i2c_eeprom_sim.h"
 #define fw_version 0x07
@@ -87,26 +87,26 @@ uint8_t Data_Get_Power_Info[DATA_LEN_GET_POWER_INFO]
 };
 
 /*---------------------------------------------------------------------------------------------------------*/
-/*  I2C1 IRQ Handler                                                                                       */
+/*  I2C0 IRQ Handler                                                                                       */
 /*---------------------------------------------------------------------------------------------------------*/
-void I2C1_IRQHandler(void)
+void I2C0_IRQHandler(void)
 {
     uint32_t u32Status;
 
-    u32Status = I2C_GET_STATUS(I2C1);
+    u32Status = I2C_GET_STATUS(I2C0);
 
-    if (I2C_GET_TIMEOUT_FLAG(I2C1))
+    if (I2C_GET_TIMEOUT_FLAG(I2C0))
     {
-        /* Clear I2C1 Timeout Flag */
-        I2C_ClearTimeoutFlag(I2C1);
+        /* Clear I2C0 Timeout Flag */
+        I2C_ClearTimeoutFlag(I2C0);
 
-        I2C_Close(I2C1);
-        I2C1_Init();
+        I2C_Close(I2C0);
+        I2C0_Init();
     }
     else
     {
-        if (s_I2C1HandlerFn != NULL)
-            s_I2C1HandlerFn(I2C1, u32Status);
+        if (s_I2C0HandlerFn != NULL)
+            s_I2C0HandlerFn(I2C0, u32Status);
     }
 }
 #define event_index 0x0f
@@ -326,41 +326,41 @@ void I2C_SlaveTRx(I2C_T *i2c, uint32_t u32Status)
     }
 }
 
-void I2C1_Init(void)
+void I2C0_Init(void)
 {
     /* Unlock protected registers */
     SYS_UnlockReg();
 
-    /* Enable I2C1 module clock */
-    CLK_EnableModuleClock(I2C1_MODULE);
+    /* Enable I2C0 module clock */
+    CLK_EnableModuleClock(I2C0_MODULE);
 
     /*---------------------------------------------------------------------------------------------------------*/
     /* Init I/O Multi-function                                                                                 */
     /*---------------------------------------------------------------------------------------------------------*/
-    /* Set PA multi-function pins for I2C1 SDA and SCL */
-    SYS->GPA_MFPL = (SYS->GPA_MFPL & ~(SYS_GPA_MFPL_PA2MFP_Msk | SYS_GPA_MFPL_PA3MFP_Msk)) | \
-                    (SYS_GPA_MFPL_PA2MFP_I2C1_SDA | SYS_GPA_MFPL_PA3MFP_I2C1_SCL);
-    PA->SMTEN |= GPIO_SMTEN_SMTEN2_Msk | GPIO_SMTEN_SMTEN3_Msk;
+    /* Set PA multi-function pins for I2C0 SDA and SCL */
+    SYS->GPC_MFPL = (SYS->GPC_MFPL & ~(SYS_GPC_MFPL_PC0MFP_Msk | SYS_GPC_MFPL_PC1MFP_Msk)) | \
+                    (SYS_GPC_MFPL_PC0MFP_I2C0_SDA | SYS_GPC_MFPL_PC1MFP_I2C0_SCL);
+    PC->SMTEN |= GPIO_SMTEN_SMTEN0_Msk | GPIO_SMTEN_SMTEN1_Msk;
     /* Open I2C module and set bus clock */
-    I2C_Open(I2C1, SPEED_I2C_BUS);
+    I2C_Open(I2C0, SPEED_I2C_BUS);
 
     /* Set I2C Slave Addresses */
-    I2C_SetSlaveAddr(I2C1, 0, ADDRESS_I2C_SLAVE_7BIT, I2C_GCMODE_DISABLE);
+    I2C_SetSlaveAddr(I2C0, 0, ADDRESS_I2C_SLAVE_7BIT, I2C_GCMODE_DISABLE);
 
     /* Enable I2C interrupt */
-    I2C_EnableInt(I2C1);
-    NVIC_EnableIRQ(I2C1_IRQn);
-    NVIC_SetPriority(I2C1_IRQn, INT_PRIORITY_HIGH);
+    I2C_EnableInt(I2C0);
+    NVIC_EnableIRQ(I2C0_IRQn);
+    NVIC_SetPriority(I2C0_IRQn, INT_PRIORITY_HIGH);
 
     /* Add hold time */
-    //    I2C1->TMCTL = 0x02 << I2C_TMCTL_HTCTL_Pos;
+    //    I2C0->TMCTL = 0x02 << I2C_TMCTL_HTCTL_Pos;
 
     /* Lock protected registers */
     SYS_LockReg();
 
     /* I2C function to Slave receive/transmit data */
-    s_I2C1HandlerFn = I2C_SlaveTRx;
+    s_I2C0HandlerFn = I2C_SlaveTRx;
 
     /* I2C enter no address SLV mode */
-    I2C_SET_CONTROL_REG(I2C1, I2C_CTL_SI_AA);
+    I2C_SET_CONTROL_REG(I2C0, I2C_CTL_SI_AA);
 }

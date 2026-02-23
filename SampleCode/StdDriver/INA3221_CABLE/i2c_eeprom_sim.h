@@ -55,14 +55,14 @@
 
 // --- Protection Logic Definitions ---
 // GPIO definitions for alarms (User needs to define these according to the schematic)
-#define LED_ALARM_PORT PC
-#define LED_ALARM_PIN  BIT2
-#define BUZZER_PORT    PC
-#define BUZZER_PIN     BIT3
-#define INA_WARNING_PORT PC
-#define INA_WARNING_PIN  BIT4
-#define PS_PGOOD_PORT  PC    // PLEASE VERIFY: This pin is based on readme.md, please confirm with schematic
-#define PS_PGOOD_PIN   BIT5  // PLEASE VERIFY: This pin is based on readme.md, please confirm with schematic
+#define LED_ALARM_PORT PB
+#define LED_ALARM_PIN  BIT15
+#define BUZZER_PORT    PB
+#define BUZZER_PIN     BIT5
+#define INA_WARNING_PORT PA
+#define INA_WARNING_PIN  BIT3
+#define PS_PGOOD_PORT  PF    // PLEASE VERIFY: This pin is based on readme.md, please confirm with schematic
+#define PS_PGOOD_PIN   BIT3  // PLEASE VERIFY: This pin is based on readme.md, please confirm with schematic
 
 // System State Machine
 enum SystemState
