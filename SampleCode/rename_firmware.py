@@ -77,7 +77,7 @@ def main():
     # Value: a tuple containing (output_name_prefix, firmware_version)
     firmware_map = {
         #                      (prefix,         version)
-        "APROM_SUM.bin": ("msi_gpu_cp", "00_00_07"), # APROM version
+        "APROM_SUM.bin": ("msi_gpu_cp", "00_00_01"), # APROM version
         "LDROM.bin":     ("msi_gpu_ld", "00_00_01"), # LDROM version (please change)
     }
 

@@ -9,7 +9,7 @@
 #define __Monitor_CONTROL_H
 
 /* Set to 1 to enable mock test mode without actual INA3221 hardware */
-//#define INA3221_MOCK_TEST           1
+#define INA3221_MOCK_TEST           0
 //#define eeprom_mock_test 1 
 #include <stdint.h>
 #include <NuMicro.h>
@@ -83,8 +83,8 @@ extern Monitor_Data_T au8MonitorData_1[MONITOR_MAX_CHANNEL];
 /* Global Variables for I2C Communication */
 extern uint32_t TimeCounterMonitorUpdate;
 #define TIMER_MONITOR_UPDATE   1700 //unit ms
-#define ina3221_config 0x7a47  //refer ina3221 config spec.extern volatile uint8_t u8MonitorFlag;
-#define ina3221_Warning_Alert_Limit  0x0411<<3 //600w
+#define ina3221_config 0x7527  //refer ina3221 config spec.extern volatile uint8_t u8MonitorFlag;
+#define ina3221_Warning_Alert_Limit  0x2518 //600w
 extern volatile uint8_t u8MonitorFlag;
 /*-------------------------------------------------------------*/
 

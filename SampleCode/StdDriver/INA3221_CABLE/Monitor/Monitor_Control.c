@@ -344,6 +344,12 @@ void I2C1_Init(void)
 
     data[0] = (ina3221_Warning_Alert_Limit>>8)&0xff;
     data[1] = (ina3221_Warning_Alert_Limit)&0xff;
+    I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X08);
+    I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
+
+
+    data[0] = (ina3221_Warning_Alert_Limit>>8)&0xff;
+    data[1] = (ina3221_Warning_Alert_Limit)&0xff;
     I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X0A);
     I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
 
@@ -636,6 +642,11 @@ void UI2C1_Init(void)
 
 
 //Warning-Alert Limit
+
+    data[0] = (ina3221_Warning_Alert_Limit>>8)&0xff;
+    data[1] = (ina3221_Warning_Alert_Limit)&0xff;
+    UI2C_WriteByte(UI2C1, ADDRESS_MONIOR_0_7BIT, 0X08);
+    UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
 
     data[0] = (ina3221_Warning_Alert_Limit>>8)&0xff;
     data[1] = (ina3221_Warning_Alert_Limit)&0xff;

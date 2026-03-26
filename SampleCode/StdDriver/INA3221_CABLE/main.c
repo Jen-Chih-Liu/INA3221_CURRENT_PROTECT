@@ -115,10 +115,12 @@ void SysTick_Handler(void)
             if ((g_u32WarningCountdownMs % 1000) < 500)
             {
                 BUZZER_PORT->DOUT |= BUZZER_PIN; // Buzzer ON
+							  LED_ALARM_PORT->DOUT |= LED_ALARM_PIN;
             }
             else
             {
                 BUZZER_PORT->DOUT &= ~BUZZER_PIN; // Buzzer OFF
+							  LED_ALARM_PORT->DOUT &= ~LED_ALARM_PIN;
             }
         }
         else if (g_u8BuzzerPattern == BUZZER_PATTERN_2HZ)
@@ -126,17 +128,21 @@ void SysTick_Handler(void)
             if ((g_u32WarningCountdownMs % 500) < 250) // 2Hz means 500ms cycle, 250ms ON, 250ms OFF
             {
                 BUZZER_PORT->DOUT |= BUZZER_PIN; // Buzzer ON
+							LED_ALARM_PORT->DOUT |= LED_ALARM_PIN;
             }
             else
             {
                 BUZZER_PORT->DOUT &= ~BUZZER_PIN; // Buzzer OFF
+							LED_ALARM_PORT->DOUT &= ~LED_ALARM_PIN;
             }
         }
         else
         {
             BUZZER_PORT->DOUT &= ~BUZZER_PIN; // BUZZER_PATTERN_OFF or unknown
+					 LED_ALARM_PORT->DOUT |= LED_ALARM_PIN;
         }
 
+				#if 0
         if (g_u32WarningCountdownMs == 0)
         {
             // Countdown finished.
@@ -150,6 +156,7 @@ void SysTick_Handler(void)
                 g_system_state = STATE_LATCHED;       // Latch the system, requires power cycle to reset
             }
         }
+				#endif
     }
     else
     {
