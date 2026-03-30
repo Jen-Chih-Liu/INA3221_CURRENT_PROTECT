@@ -123,11 +123,12 @@ void SysTick_Handler(void)
 							  LED_ALARM_PORT->DOUT &= ~LED_ALARM_PIN;
             }
         }
+				#if 1
         else if (g_u8BuzzerPattern == BUZZER_PATTERN_2HZ)
         {
             if ((g_u32WarningCountdownMs % 500) < 250) // 2Hz means 500ms cycle, 250ms ON, 250ms OFF
             {
-                BUZZER_PORT->DOUT |= BUZZER_PIN; // Buzzer ON
+              BUZZER_PORT->DOUT |= BUZZER_PIN; // Buzzer ON
 							LED_ALARM_PORT->DOUT |= LED_ALARM_PIN;
             }
             else
@@ -136,6 +137,7 @@ void SysTick_Handler(void)
 							LED_ALARM_PORT->DOUT &= ~LED_ALARM_PIN;
             }
         }
+				#endif
         else
         {
             BUZZER_PORT->DOUT &= ~BUZZER_PIN; // BUZZER_PATTERN_OFF or unknown
@@ -332,6 +334,8 @@ void Event_Log_Handler(void);
 void Peripherals_Init(void)
 {
     initial_eeprom_ram();
+	 CLK_EnableModuleClock(GPC_MODULE);
+		 CLK_EnableModuleClock(GPB_MODULE);
    LED_ALARM_PORT->DOUT &= ~LED_ALARM_PIN; // Turn off LED initially
     BUZZER_PORT->DOUT &= ~BUZZER_PIN;     // Turn off Buzzer initially
     PS_PGOOD_PORT->DOUT &= ~PS_PGOOD_PIN;   // Set PGOOD to low (Normal) initially
@@ -435,27 +439,22 @@ void Config_Load(void)
     memcpy((void *)&eeprom_ram[I2C_REG_OFFSET_LOT_ID], g_au8LotID, EEPROM_LOT_ID_SIZE);
     memcpy((void *)&eeprom_ram[I2C_REG_OFFSET_MFG_DATE], g_au8MFGDate, EEPROM_MFG_DATE_SIZE);
 }
-
+extern volatile uint8_t g_u8GetEndFlag_1 ;
+extern volatile uint8_t g_u8GetEndFlag_0 ;
 /*---------------------------------------------------------------------------------------------------------*/
 /*  Core Protection Logic Handler                                                                          */
 /*---------------------------------------------------------------------------------------------------------*/
 void Protection_Handler(void)
 {
-    /* Check if get monitor data */
-    if(u8MonitorFlag == 1)
-    {
-#if (USE_MONITOR_0 == TRUE)
-        /* Get monitor data */
-        Read_Monitor_Data_0();
-#endif
 
-#if (USE_MONITOR_1 == TRUE)
-        /* Get monitor data */
-        Read_Monitor_Data_1();
-#endif
+		
+		if ((g_u8GetEndFlag_1 == 1) &&(g_u8GetEndFlag_0 == 1))
+		{
+			__disable_irq();
         /* --- Protection 1: Current Imbalance Check --- */
         if (g_system_state != STATE_LATCHED)
         {
+		        			   
             uint16_t currents[6];
             uint16_t max_current = 0;
             uint16_t min_current = 0xFFFF;
@@ -474,7 +473,9 @@ void Protection_Handler(void)
                 if (currents[i] > max_current) max_current = currents[i];
                 if (currents[i] < min_current) min_current = currents[i];
             }
-
+            //if((min_current!=0)&&(max_current!=0))
+						//if(min_current!=0)
+						{
             // 3. Check imbalance condition (Threshold is in mA, currents are in 10mA)
             if ((max_current - min_current) > (g_AppConfig.u32IMBALANCE_THRESHOLD / 10))
             {
@@ -488,7 +489,7 @@ void Protection_Handler(void)
                 // Condition cleared, reset debounce counter
                 g_u8ImbalanceDebounceCounter = 0;
             }
-
+					  }
             // 4. Handle state transitions based on debounce
             if (g_u8ImbalanceDebounceCounter >= IMBALANCE_DEBOUNCE_COUNT)
             {
@@ -526,9 +527,8 @@ void Protection_Handler(void)
             }
             PS_PGOOD_PORT->DOUT |= PS_PGOOD_PIN; // Set PGOOD to high (Protection state)
         }
-
-        u8MonitorFlag = 0;
-    }
+__enable_irq();
+			}
 
     /* --- Protection 2: HW Warning Check (triggered by GPIO interrupt) --- */
     if (g_u8HwWarningTriggered )
@@ -546,6 +546,20 @@ void Protection_Handler(void)
         }
         g_u8HwWarningTriggered = 0; // Clear the trigger flag after handling
     }
+		    /* Check if get monitor data */
+    if(u8MonitorFlag == 1)
+    {
+#if (USE_MONITOR_0 == TRUE)
+        /* Get monitor data */
+        Read_Monitor_Data_0();
+#endif
+
+#if (USE_MONITOR_1 == TRUE)
+        /* Get monitor data */
+        Read_Monitor_Data_1();
+#endif
+			       u8MonitorFlag = 0;    
+		}
 }
 
 /*---------------------------------------------------------------------------------------------------------*/

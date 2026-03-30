@@ -9,8 +9,8 @@
 #define EE_OFFSET_LOG_HEAD              0x0D    // size: 1 (Original was 0x0B, which was a bug)
 
 // Default configuration values
-#define DEFAULT_IMBALANCE_THRESHOLD     1000
-#define DEFAULT_COUNTDOWN_MS            30000
+#define DEFAULT_IMBALANCE_THRESHOLD     4000
+#define DEFAULT_COUNTDOWN_MS            60000
 #define DEFAULT_SW_DEBOUNCE             2
 #define DEFAULT_LOG_HEAD                0
 // Asset Information Sizes (as per readme.md EEPROM layout)

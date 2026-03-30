@@ -96,8 +96,8 @@ static UI2C_MONITOR_FUNC s_UI2C1HandlerFn = NULL;
 
 void I2C1_Init(void);
 void UI2C1_Init(void);
-void Read_Monitor_Data_0(void);
-void Read_Monitor_Data_1(void);
+extern void Read_Monitor_Data_0(void);
+extern void Read_Monitor_Data_1(void);
 /*-------------------------------------------------------------*/
 
 #endif  /* __I2C_CONTROL_H */

@@ -333,37 +333,47 @@ void I2C1_Init(void)
     I2C_Open(I2C1, SPEED_MONIOR_0_BUS);
 
     //initial ina3221 sample 16
-    uint8_t data[2];
-    data[0] = (ina3221_config>>8)&0xff;
-    data[1] = (ina3221_config)&0xff;
-    I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X0);
+
+    uint8_t data[3];
+	   // uint8_t dataread[2];
+	  data[0]=0X0; //address
+    data[1] = (ina3221_config>>8)&0xff;
+    data[2] = (ina3221_config)&0xff;
+    //I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X0);
     //wait i2c stop finish.
-    I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
-   
+    I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 3);
+    //I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X0);
+		//I2C_ReadMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, dataread, 2);
+    
+		
 //Warning-Alert Limit
+    data[0]=0x08;
+    data[1] = (ina3221_Warning_Alert_Limit>>8)&0xff;
+    data[2] = (ina3221_Warning_Alert_Limit)&0xff;
+   // I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X08);
+    //I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
+I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 3);
+data[0]=0x0a;
 
-    data[0] = (ina3221_Warning_Alert_Limit>>8)&0xff;
-    data[1] = (ina3221_Warning_Alert_Limit)&0xff;
-    I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X08);
-    I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
+    data[1] = (ina3221_Warning_Alert_Limit>>8)&0xff;
+    data[2] = (ina3221_Warning_Alert_Limit)&0xff;
+		I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 3);
+    //I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X0A);
+    //I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
 
+data[0]=0x0c;
+    data[1] = (ina3221_Warning_Alert_Limit>>8)&0xff;
+    data[2] = (ina3221_Warning_Alert_Limit)&0xff;
+			I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 3);
+    //I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X0C);
+    //I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
 
-    data[0] = (ina3221_Warning_Alert_Limit>>8)&0xff;
-    data[1] = (ina3221_Warning_Alert_Limit)&0xff;
-    I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X0A);
-    I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
-
-
-    data[0] = (ina3221_Warning_Alert_Limit>>8)&0xff;
-    data[1] = (ina3221_Warning_Alert_Limit)&0xff;
-    I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X0C);
-    I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
-
-
-    data[0] = (ina3221_Warning_Alert_Limit>>8)&0xff;;
-    data[1] = (ina3221_Warning_Alert_Limit)&0xff;
-    I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X0E);
-    I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
+data[0]=0x0e;
+    data[1] = (ina3221_Warning_Alert_Limit>>8)&0xff;;
+    data[2] = (ina3221_Warning_Alert_Limit)&0xff;
+		I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 3);
+    //I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X0E);
+    //I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
 
 
     /* Enable I2C interrupt */
@@ -634,36 +644,42 @@ void UI2C1_Init(void)
 
 
     //initial ina3221 sample 16
-    uint8_t data[2];
-    data[0] = (ina3221_config>>8)&0xff;//0X7A;
-    data[1] = (ina3221_config)&0xff;//0X47;
-    UI2C_WriteByte(UI2C1, ADDRESS_MONIOR_0_7BIT, 0X0);
-    UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
+    uint8_t data[3];
+	data[0]=0x0; 
+    data[1] = (ina3221_config>>8)&0xff;//0X7A;
+    data[2] = (ina3221_config)&0xff;//0X47;
+		UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 3);
+    //UI2C_WriteByte(UI2C1, ADDRESS_MONIOR_0_7BIT, 0X0);
+    //UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
 
 
 //Warning-Alert Limit
-
+data[0]=0x8;
+    data[1] = (ina3221_Warning_Alert_Limit>>8)&0xff;
+    data[2] = (ina3221_Warning_Alert_Limit)&0xff;
+		UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 3);
+    //UI2C_WriteByte(UI2C1, ADDRESS_MONIOR_0_7BIT, 0X08);
+    //UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
+data[0]=0xa;
     data[0] = (ina3221_Warning_Alert_Limit>>8)&0xff;
     data[1] = (ina3221_Warning_Alert_Limit)&0xff;
-    UI2C_WriteByte(UI2C1, ADDRESS_MONIOR_0_7BIT, 0X08);
-    UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
+		UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 3);
+    //UI2C_WriteByte(UI2C1, ADDRESS_MONIOR_0_7BIT, 0X0A);
+    //UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
 
+data[0]=0xc;
     data[0] = (ina3221_Warning_Alert_Limit>>8)&0xff;
     data[1] = (ina3221_Warning_Alert_Limit)&0xff;
-    UI2C_WriteByte(UI2C1, ADDRESS_MONIOR_0_7BIT, 0X0A);
-    UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
+		UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 3);
+    //UI2C_WriteByte(UI2C1, ADDRESS_MONIOR_0_7BIT, 0X0C);
+    //UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
 
-
-    data[0] = (ina3221_Warning_Alert_Limit>>8)&0xff;
-    data[1] = (ina3221_Warning_Alert_Limit)&0xff;
-    UI2C_WriteByte(UI2C1, ADDRESS_MONIOR_0_7BIT, 0X0C);
-    UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
-
-
+data[0]=0xe;
     data[0] = (ina3221_Warning_Alert_Limit>>8)&0xff;;
     data[1] = (ina3221_Warning_Alert_Limit)&0xff;
-    UI2C_WriteByte(UI2C1, ADDRESS_MONIOR_0_7BIT, 0X0E);
-    UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
+		UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 3);
+    //UI2C_WriteByte(UI2C1, ADDRESS_MONIOR_0_7BIT, 0X0E);
+    //UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
 
     /* Enable UI2C1 interrupt */
     UI2C_ENABLE_PROT_INT(UI2C1, (UI2C_PROTIEN_ACKIEN_Msk | UI2C_PROTIEN_NACKIEN_Msk | UI2C_PROTIEN_STORIEN_Msk | UI2C_PROTIEN_STARIEN_Msk));

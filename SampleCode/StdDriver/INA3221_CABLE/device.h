@@ -38,11 +38,11 @@
 #if (USE_MONITOR_1 == TRUE)
 // <h> Channel Selection
 // <q.0> Use Channel 1
-#define USE_MONITOR_1_CH1        0x00000000
+#define USE_MONITOR_1_CH1        0x00000001
 // <q.0> Use Channel 2
-#define USE_MONITOR_1_CH2        0x00000000
+#define USE_MONITOR_1_CH2        0x00000001
 // <q.0> Use Channel 3
-#define USE_MONITOR_1_CH3        0x00000000
+#define USE_MONITOR_1_CH3        0x00000001
 // </h>
 #else
 #define USE_MONITOR_1_CH1        0x00000000
