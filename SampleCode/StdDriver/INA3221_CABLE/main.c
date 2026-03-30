@@ -37,6 +37,7 @@ static uint8_t  g_u8OcDebounceCounter          = 0;            /* Overcurrent de
 volatile uint32_t g_u32WarningCountdownMs       = 0;            /* Unified latch countdown (ms)    */
 static uint8_t  g_bLogSavedForLatch            = 0;            /* Ensure log saved once per latch */
 static volatile uint8_t g_u8HwWarningTriggered = 0;            /* Flag for HW warning interrupt   */
+static uint8_t  g_u8ProtectionChecked         = 0;            /* Debounce: checked once per data cycle */
 volatile uint32_t g_u32McuRunTimeSeconds = 0; // MCU runtime in seconds
 static volatile uint16_t g_u16McuRunTimeMillis = 0; // Millisecond counter for runtime
 extern uint8_t volatile u8EVEN_INDEX_FLAG;
@@ -116,8 +117,7 @@ void SysTick_Handler(void)
             /* Countdown expired -> latch system */
             if (g_system_state == STATE_WARNING_COUNTDOWN)
                 g_system_state = STATE_LATCHED;
-            LED_ALARM_PORT->DOUT |=  LED_ALARM_PIN; /* Solid LED on latch */
-            BUZZER_PORT->DOUT    &= ~BUZZER_PIN;    /* Buzzer off after latch */
+            /* LED and Buzzer keep blinking - handled by STATE_LATCHED block on next tick */
         }
         else if ((LATCH_COUNTDOWN_MS - g_u32WarningCountdownMs) < BUZZER_DELAY_MS)
         {
@@ -126,7 +126,7 @@ void SysTick_Handler(void)
                 LED_ALARM_PORT->DOUT |=  LED_ALARM_PIN;
             else
                 LED_ALARM_PORT->DOUT &= ~LED_ALARM_PIN;
-            BUZZER_PORT->DOUT &= ~BUZZER_PIN;
+                BUZZER_PORT->DOUT &= ~BUZZER_PIN;
         }
         else
         {
@@ -145,13 +145,22 @@ void SysTick_Handler(void)
     }
     else if (g_system_state == STATE_LATCHED)
     {
-        LED_ALARM_PORT->DOUT |=  LED_ALARM_PIN; /* Keep LED solid on */
-        BUZZER_PORT->DOUT    &= ~BUZZER_PIN;
+        /* After latch: LED and Buzzer continue blinking at 2 Hz */
+        if ((g_u16McuRunTimeMillis % 500) < 250)
+        {
+            LED_ALARM_PORT->DOUT |=  LED_ALARM_PIN;
+            BUZZER_PORT->DOUT    |=  BUZZER_PIN;
+        }
+        else
+        {
+            LED_ALARM_PORT->DOUT &= ~LED_ALARM_PIN;
+            BUZZER_PORT->DOUT    &= ~BUZZER_PIN;
+        }
     }
     else
     {
-        LED_ALARM_PORT->DOUT &= ~LED_ALARM_PIN; /* All clear */
-        BUZZER_PORT->DOUT    &= ~BUZZER_PIN;
+       // LED_ALARM_PORT->DOUT &= ~LED_ALARM_PIN; /* All clear */
+       // BUZZER_PORT->DOUT    &= ~BUZZER_PIN;
     }
 
     /* Get monitor data */
@@ -324,9 +333,11 @@ void Peripherals_Init(void)
     initial_eeprom_ram();
 	 CLK_EnableModuleClock(GPC_MODULE);
 		 CLK_EnableModuleClock(GPB_MODULE);
+			 CLK_EnableModuleClock(GPF_MODULE);
+	 PS_PGOOD_PORT->DOUT &= ~PS_PGOOD_PIN;   // Set PGOOD to low (Normal) initially
    LED_ALARM_PORT->DOUT &= ~LED_ALARM_PIN; // Turn off LED initially
     BUZZER_PORT->DOUT &= ~BUZZER_PIN;     // Turn off Buzzer initially
-    PS_PGOOD_PORT->DOUT &= ~PS_PGOOD_PIN;   // Set PGOOD to low (Normal) initially
+   
     /* Configure protection GPIOs */
     GPIO_SetMode(LED_ALARM_PORT, LED_ALARM_PIN, GPIO_MODE_OUTPUT);
     GPIO_SetMode(BUZZER_PORT, BUZZER_PIN, GPIO_MODE_OUTPUT);
@@ -434,10 +445,25 @@ extern volatile uint8_t g_u8GetEndFlag_0 ;
 /*---------------------------------------------------------------------------------------------------------*/
 void Protection_Handler(void)
 {
+    /* Check if new monitor data is ready — start I2C read promptly and reset the       */
+    /* "checked" flag so the protection debounce runs exactly once per 1700 ms cycle.   */
+    if(u8MonitorFlag == 1)
+    {
+        u8MonitorFlag = 0;
+        g_u8ProtectionChecked = 0; /* Allow one protection evaluation for this new data */
+#if (USE_MONITOR_0 == TRUE)
+        Read_Monitor_Data_0();
+#endif
+#if (USE_MONITOR_1 == TRUE)
+        Read_Monitor_Data_1();
+#endif
+    }
 
-		
-		if ((g_u8GetEndFlag_1 == 1) &&(g_u8GetEndFlag_0 == 1))
+		/* Run protection logic only ONCE per I2C data cycle to correctly time the debounce. */
+		/* g_u8ProtectionChecked is cleared by u8MonitorFlag every TIMER_MONITOR_UPDATE ms.  */
+		if ((g_u8GetEndFlag_1 == 1) &&(g_u8GetEndFlag_0 == 1) && (g_u8ProtectionChecked == 0))
 		{
+			g_u8ProtectionChecked = 1; /* Mark as processed for this cycle */
 			//__disable_irq();
         /* --- Protection 1: Current Imbalance Check --- */
         if (g_system_state != STATE_LATCHED)
@@ -561,20 +587,6 @@ void Protection_Handler(void)
         }
         g_u8HwWarningTriggered = 0; // Clear the trigger flag after handling
     }
-		    /* Check if get monitor data */
-    if(u8MonitorFlag == 1)
-    {
-#if (USE_MONITOR_0 == TRUE)
-        /* Get monitor data */
-        Read_Monitor_Data_0();
-#endif
-
-#if (USE_MONITOR_1 == TRUE)
-        /* Get monitor data */
-        Read_Monitor_Data_1();
-#endif
-			       u8MonitorFlag = 0;    
-		}
 }
 
 /*---------------------------------------------------------------------------------------------------------*/

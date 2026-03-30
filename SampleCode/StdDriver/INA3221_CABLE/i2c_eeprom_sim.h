@@ -52,11 +52,11 @@
 #define BUZZER_PATTERN_2HZ      2
 
 // Imbalance Protection Parameters
-#define IMBALANCE_DEBOUNCE_COUNT 3
+#define IMBALANCE_DEBOUNCE_COUNT 5
 
 // Overcurrent Protection Parameters
 #define OVERCURRENT_THRESHOLD       9300    /* unit: 10mA (= 93A); trigger if any channel exceeds this */
-#define OVERCURRENT_DEBOUNCE_COUNT  3       /* consecutive detections before event is confirmed */
+#define OVERCURRENT_DEBOUNCE_COUNT  5       /* consecutive detections before event is confirmed */
 
 // Unified Warning Timing
 #define BUZZER_DELAY_MS     20000   /* LED-only phase before buzzer activates (20 s) */
