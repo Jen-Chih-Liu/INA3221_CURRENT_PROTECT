@@ -1,388 +1,383 @@
-MCU Firmware Specification (v1.2)
-# M251 I2C Master Test for Custom Slave Device
+﻿MCU Firmware Specification (v1.3)
+# M251 GPU Cable Current Protection Firmware
 
-版本: v1.2
-日期: 2026-02-09
-修訂: 整合 INA3221 監控、電流不平衡判斷、5分鐘延時保護邏輯，並完整定義 EEPROM 配置。新增 Flash Memory Map 與 Boot Loader 規格。修正 SMBus 速度。
+版本: v1.3
+日期: 2026-03-30
+修訂: 整合過電流保護（任意通道 > 93A）與電流不平衡保護（差值 > 4000mA）至統一三階段告警狀態機；固定 3 分鐘鎖定倒數（LATCH_COUNTDOWN_MS）；更正 Log Entry 結構（22 Bytes × 11 筆）；更正 PS_PGOOD 極性（Protection = High）；更正 EEPROM 分區位址。
 
-1. System Overview (系統概述)
+---
 
-1.1 核心元件
+## 1. System Overview (系統概述)
 
-MCU: Nuvoton M251ZD2AE
+### 1.1 核心元件
 
-Core: ARM Cortex-M23
-
-Memory: 64 KB Flash / 12 KB SRAM
-User arpom area: 0x0-0xcfff
-Power: 3.3V
-
-Sensor: Texas Instruments INA3221 (x2)
+| 項目 | 規格 |
+|------|------|
+| MCU | Nuvoton M251ZD2AE |
+| Core | ARM Cortex-M23 |
+| Flash / SRAM | 64 KB / 12 KB |
+| User APROM | 0x0000 – 0xCFFF |
+| Power | 3.3 V |
+| Current Sensor | Texas Instruments INA3221 × 2 |
 
 | Function        | Pin      | Description                               |
 |-----------------|----------|-------------------------------------------|
-| `LED_ALARM`     | `PB.15`  | Alarm indicator LED                       |
-| `BUZZER`        | `PB.5`   | Audible alarm buzzer                      |
-| `INA_WARNING`   | `PC.4`   | Hardware warning input from INA3221       |
-| `PS_PGOOD`      | `PF.3`   | Power Good signal output to power supply  |
+| `LED_ALARM`     | `PB.15`  | 告警指示 LED                              |
+| `BUZZER`        | `PB.5`   | 蜂鳴器                                    |
+| `INA_WARNING`   | `PA.3`   | 來自 INA3221 的硬體警告輸入               |
+| `PS_PGOOD`      | `PF.3`   | 電源好信號輸出（Normal=Low, Protection=High）|
 
-INA_A (Ch 1-3): I2C1 Addr 0x40 (A0=GND)
-INA_B (Ch 4-6): USCI-I2C1 Addr 0x40 (A0=GND)
+- **INA_A (Ch 1–3)**: I2C1, Addr 0x40 (A0=GND)
+- **INA_B (Ch 4–6)**: USCI-I2C1, Addr 0x40 (A0=GND)
+- **功能**: 監控 6 路 12V 輸出的 Bus Voltage 與 Shunt Voltage
+- **Communication**: I2C/SMBus Slave (I2C0)，Target Address: 0x4D (8-bit: 0x9A)，Speed: 100 kHz，PEC: Disabled
 
-Function: 監控 6 路 12V 輸出的 Bus Voltage 與 Shunt Voltage。
+### 1.2 GPIO Pin Definition
 
-Communication: I2C/SMBus Slave Interface I2C0
+| Function        | Direction  | Active Level | Description                                      |
+|-----------------|------------|--------------|--------------------------------------------------|
+| I2C_SCL         | Open-Drain | —            | SMBus Clock                                      |
+| I2C_SDA         | Open-Drain | —            | SMBus Data                                       |
+| INA_WARNING     | Input      | Low          | 兩顆 INA3221 的 Warning Pin（Wired-OR）          |
+| LED_ALARM       | Output     | High         | 告警指示燈（亮起代表異常）                       |
+| BUZZER          | Output     | High         | 蜂鳴器控制                                       |
+| PS_PGOOD        | Output     | High         | 保護信號（Normal=Low, Protection=High）          |
 
-Target Address: 0x4d (8-bit: 0x9A)
+---
 
-Speed: 100kHz (Standard Mode)
+## 2. Firmware Logic (功能邏輯)
 
-PEC: Disabled
+### A. Data Acquisition (數據擷取)
 
-1.2 GPIO Pin Definition
+- MCU 每 **1700 ms** 透過 I2C 讀取兩顆 INA3221 的 Shunt Voltage Register 與 Bus Voltage Register。
+- **換算**:
+  - Current (10mA 單位): Shunt_Voltage_UV / Shunt_Resistor_mOhm / 10
+  - Voltage (10mV 單位): Bus_Voltage_Raw × 8 / 10
+- 數值存入 SRAM Shadow Buffer（`eeprom_ram[0x30–0x47]`），供 SMBus 讀取。
 
+---
 
-| Function      | Direction  | Active Level | Description                                  |
-|---------------|------------|--------------|----------------------------------------------|
-| I2C_SCL       | Open-Drain | -            | SMBus Clock                                  |
-| I2C_SDA       | Open-Drain | -            | SMBus Data                                   |
-| INA_WARNING   | Input      | Low          | 來自兩顆 INA3221 的 Warning Pin (Wired-OR) |
-| LED_ALARM     | Output     | High         | 告警指示燈 (亮起代表異常)                    |
-| BUZZER        | Output     | High/PWM     | 蜂鳴器控制                                   |
-| PS_VMON_PGOOD | Output     | High         | 電源好信號 (Normal=High, Protection=Low)     |
+### B. Protection 1: Current Imbalance — 電流不平衡保護
 
-2. Firmware Logic (功能邏輯)
+**觸發條件:**
+- MCU 計算 6 路電流的 Max 與 Min。
+- 若 `(Max - Min) > IMBALANCE_THRESHOLD / 10`（IMBALANCE_THRESHOLD 預設 **4000 mA**，換算後為 400 × 10mA 單位）。
+- 需連續 **3 次**採樣皆超標（`IMBALANCE_DEBOUNCE_COUNT = 3`）才確認異常。
+- Status Register **Bit 3** (`STATUS_BIT_IMBALANCE`) 置 1。
 
-A. Data Acquisition (數據擷取)
+---
 
-Polling Loop: MCU 每 10ms (TBD) 透過 I2C 讀取兩顆 INA3221 的 Shunt Voltage Register 與 Bus Voltage Register。
+### C. Protection 2: Overcurrent — 過電流保護
 
-Conversion:
+**觸發條件:**
+- 任意通道電流 > **9300**（單位 10mA = **93 A**）。
+- 需連續 **3 次**採樣皆超標（`OVERCURRENT_DEBOUNCE_COUNT = 3`）才確認異常。
+- Status Register **Bit 5** (`STATUS_BIT_OVERCURRENT`) 置 1。
 
-Current (mA): Shunt_Voltage_UV / Shunt_Resistor_mOhm.
+---
 
-Voltage (mV): Bus_Voltage_Raw * 8.
+### D. Unified Warning Sequence — 統一三階段告警序列
 
-數值存入 SRAM 中的 Shadow Buffer，供 SMBus 讀取 (0x30~0xB)。
+**Protection 1 與 Protection 2 均使用相同的告警狀態機。任一異常確認後立即啟動 180 秒倒數。**
 
-B. Protection 1: Current Imbalance (MCU 演算法)
+```
+異常確認（debounce 通過）
+        │
+        ▼  STATE_WARNING_COUNTDOWN
+  Phase 1: T +  0 s  →  T + 20 s
+  ─────────────────────────────────
+  LED: 1 Hz 閃爍（500ms ON / 500ms OFF）
+  BUZZER: 靜音
+        │
+        ▼  T + 20 s  (BUZZER_DELAY_MS = 20 000 ms)
+  Phase 2: T + 20 s  →  T + 180 s
+  ─────────────────────────────────
+  LED: 2 Hz 閃爍（250ms ON / 250ms OFF）
+  BUZZER: 2 Hz 嗶嗶聲（同步）
+        │
+        ▼  T + 180 s  (LATCH_COUNTDOWN_MS = 180 000 ms)
+  STATE_LATCHED（需斷電重置）
+  ─────────────────────────────────
+  PS_PGOOD: 拉高（保護動作）
+  LED: 常亮
+  BUZZER: 靜音
+  Event Log: 儲存一次快照至 EEPROM 2
 
-觸發條件:
+  若異常在 180 s 內消失：
+  → 回到 STATE_NORMAL，LED/Buzzer 全關，PS_PGOOD 保持 Low
+```
 
-MCU 計算 6 路電流的 Max_Val 與 Min_Val。
+**關鍵時序常數（編譯期固定）:**
 
-若 (Max_Val - Min_Val) > IMBALANCE_THRESHOLD (預設 1A，可由暫存器 0x08 設定)。
+| 常數 | 值 | 說明 |
+|------|----|------|
+| `BUZZER_DELAY_MS` | 20 000 ms | LED-only 階段結束時間（20 秒） |
+| `LATCH_COUNTDOWN_MS` | 180 000 ms | 總倒數時間（3 分鐘），到期後鎖定 |
 
-需經過 Debounce (例如連續 3 次採樣皆異常) 以避免雜訊誤觸。
+> **注意**: 鎖定倒數時間由編譯期常數 `LATCH_COUNTDOWN_MS` 控制，不使用 I2C 暫存器 `0x08` (Countdown Duration)。
 
-動作 (Warning Action):
+---
 
-LED_ALARM: ON.
+### E. Protection 3: HW Warning — INA3221 硬體中斷
 
-BUZZER: ON (Pattern: 1Hz Beep).
+**觸發條件:**
+- 600W 限制，50A 平均分配，每通道警告上限設定為 8.33 A。
+- 任一 INA3221 內部偵測超出 Limit，拉低 `INA_WARNING` Pin（PA.3，Falling Edge 中斷）。
 
-Status Register: Bit 3 (Imbalance) Set to 1.
+**動作:**
+- MCU 收到中斷，立即讀取最新感測數據快照。
+- 執行 Event Log 快照（寫入 EEPROM 2）。
+- Status Register **Bit 4** (`STATUS_BIT_HW_WARNING`) 置 1。
+- PS_PGOOD 拉高（鎖定）。
 
-進入倒數狀態 (State: WARNING_COUNTDOWN)。
+---
 
+## 3. Register Map (I2C 暫存器地圖)
 
-C. Protection 2: HW Warning (INA3221 硬體中斷)
+裝置作為 I2C 從裝置，內部 `eeprom_ram[256]` 對應為 Register Map。
 
-觸發條件:
-600W Limit, 50A 平均分配，每個通道的警告上限設定為 8.33A
-
-任一 INA3221 偵測到數值超過其內部設定的 Limit (透過 MCU 初始化時設定)，拉低 INA_WARNING Pin。
-
-動作 (Interrupt Action):
-
-MCU 收到中斷，讀取 INA3221 的 Mask/Enable Register 確認觸發源。
-
-LED_ALARM: ON.
-
-BUZZER: ON (Pattern: 2Hz Beep).
-
-Status Register: Bit 4 (HW Warning) Set to 1.
-
-執行 Data Log Snapshot (寫入 EEPROM 2)。
-
-系統鎖定 (Latch)。
-
-3. Register Map (暫存器地圖)
-
-此裝置作為 I2C 從裝置，其內部記憶體 `eeprom_ram[256]` 對應為 I2C 的 Register Map。主機可以透過標準的 I2C 讀寫操作來存取這些暫存器。
-
-| 位址 (Offset) | 大小 (Bytes) | 欄位名稱 | 權限 | 說明 |
+| 位址 (Offset) | 大小 | 欄位名稱 | 權限 | 說明 |
 | :--- | :--- | :--- | :--- | :--- |
 | **配置區** | | | | |
-| `0x00 - 0x03` | 4 | Power On Count | R | 系統開機次數(lsb first) |
-| `0x04 - 0x07` | 4 | Imbalance Threshold | R/W | 電流不平衡閥值，單位：mA (lsb first)|
-| `0x08 - 0x0B` | 4 | Countdown Duration | R/W | 警告倒數計時時間，單位：ms (lsb first)|
-| `0x0C` | 1 | SW Debounce Count | R/W | 不平衡軟體去抖動計數 |
-| `0x0D` | 1 | Log Head | R/W | 事件日誌指標 |
+| `0x00–0x03` | 4 B | Power On Count | R | 系統開機次數 (LSB first) |
+| `0x04–0x07` | 4 B | Imbalance Threshold | R/W | 電流不平衡閥值，單位：mA，預設 **4000** (LSB first) |
+| `0x08–0x0B` | 4 B | Countdown Duration | R/W | 保留供主機讀寫，預設 60000 ms（*鎖定時間固定 3 min，此值目前不影響保護邏輯*） |
+| `0x0C` | 1 B | SW Debounce Count | R/W | 軟體去抖動計數，預設 2 |
+| `0x0D` | 1 B | Log Head | R/W | 事件日誌環形緩衝區指標（0–10） |
 | **狀態區** | | | | |
-| `0x0E` | 1 | Status Register | R | 系統狀態旗標 (Bit 3: Imbalance, Bit 4: HW Warning) |
-| `0x0F` | 1 | event_indext | R/W | read eeprom event index |
+| `0x0E` | 1 B | Status Register | R | 系統狀態旗標（見 3.1） |
+| `0x0F` | 1 B | Event Log Index | R/W | 主機寫入欲讀取的 Log 索引（0–10），MCU 回填至 `0x80` |
 | **校準資料區** | | | | |
-| `0x10 - 0x27` | 24 | Calibration Data | R/W | 6 通道校準資料 (每通道：Gain 2B + Offset 2B) (lsb first)|
+| `0x10–0x27` | 24 B | Calibration Data | R/W | 6 通道：每通道 Gain (2B LE) + Offset (2B LE) |
 | **即時監測數據區** | | | | |
-| `0x30 - 0x31` | 2 | Channel 1 Current | R | 單位: 10mA(lsb first) |
-| `0x32 - 0x33` | 2 | Channel 1 Voltage | R | 單位: 10mV(lsb first) |
-| `0x34 - 0x35` | 2 | Channel 2 Current | R | 單位: 10mA(lsb first) |
-| `0x36 - 0x37` | 2 | Channel 2 Voltage | R | 單位: 10mV(lsb first) |
-| `0x38 - 0x39` | 2 | Channel 3 Current | R | 單位: 10mA(lsb first) |
-| `0x3A - 0x3B` | 2 | Channel 3 Voltage | R | 單位: 10mV (lsb first)|
-| `0x3C - 0x3D` | 2 | Channel 4 Current | R | 單位: 10mA (lsb first)|
-| `0x3E - 0x3F` | 2 | Channel 4 Voltage | R | 單位: 10mV (lsb first)|
-| `0x40 - 0x41` | 2 | Channel 5 Current | R | 單位: 10mA (lsb first)|
-| `0x42 - 0x43` | 2 | Channel 5 Voltage | R | 單位: 10mV (lsb first)|
-| `0x44 - 0x45` | 2 | Channel 6 Current | R | 單位: 10mA (lsb first)|
-| `0x46 - 0x47` | 2 | Channel 6 Voltage | R | 單位: 10mV (lsb first)|
+| `0x30–0x31` | 2 B | Ch1 Current | R | 單位: 10 mA (LSB first) |
+| `0x32–0x33` | 2 B | Ch1 Voltage | R | 單位: 10 mV (LSB first) |
+| `0x34–0x35` | 2 B | Ch2 Current | R | 單位: 10 mA (LSB first) |
+| `0x36–0x37` | 2 B | Ch2 Voltage | R | 單位: 10 mV (LSB first) |
+| `0x38–0x39` | 2 B | Ch3 Current | R | 單位: 10 mA (LSB first) |
+| `0x3A–0x3B` | 2 B | Ch3 Voltage | R | 單位: 10 mV (LSB first) |
+| `0x3C–0x3D` | 2 B | Ch4 Current | R | 單位: 10 mA (LSB first) |
+| `0x3E–0x3F` | 2 B | Ch4 Voltage | R | 單位: 10 mV (LSB first) |
+| `0x40–0x41` | 2 B | Ch5 Current | R | 單位: 10 mA (LSB first) |
+| `0x42–0x43` | 2 B | Ch5 Voltage | R | 單位: 10 mV (LSB first) |
+| `0x44–0x45` | 2 B | Ch6 Current | R | 單位: 10 mA (LSB first) |
+| `0x46–0x47` | 2 B | Ch6 Voltage | R | 單位: 10 mV (LSB first) |
+| **事件 Log 回讀區** | | | | |
+| `0x80–0x93` | 20 B | Event Log Data | R | MCU 依 `0x0F` 索引回填的 Log 內容 |
 | **運行時間區** | | | | |
-| `0xB0 - 0xB3` | 4 | MCU Run Time | R | MCU 執行時間 (秒) (lsb first)|
+| `0xB0–0xB3` | 4 B | MCU Run Time | R | MCU 執行時間（秒，LSB first） |
 | **資產訊息區** | | | | |
-| `0xC0 - 0xCF` | 16 | Manufacturing Date | R/W | 製造日期 (ASCII) |
-| `0xD0 - 0xDF` | 16 | Lot ID | R/W | 批次號碼 (ASCII) |
-| `0xE0 - 0xEF` | 16 | Serial Number | R/W | 產品序號 (ASCII) |
+| `0xC0–0xCF` | 16 B | Manufacturing Date | R/W | 製造日期 (ASCII) |
+| `0xD0–0xDF` | 16 B | Lot ID | R/W | 批次號碼 (ASCII) |
+| `0xE0–0xEF` | 16 B | Serial Number | R/W | 產品序號 (ASCII) |
 | **裝置資訊區** | | | | |
-| `0xF0` | 1 | FW Version | R | 韌體版本 (e.g., 0x01) |
-| `0xF1` - `0xFB` | 11 | Device Name | R | 裝置名稱字串 "M251_GPU_CP" (ASCII) |
-| `0xFC` - `0xFF` | 4 | Reserved | R | 保留 |
+| `0xF0` | 1 B | FW Version | R | 韌體版本（目前 0x01） |
+| `0xF1–0xFB` | 11 B | Device Name | R | "M251_GPU_CP" (ASCII) |
+| `0xFC–0xFF` | 4 B | Reserved | — | 保留 |
 
-讀取以上的資訊
-example, read verion
-w 0x4d (i2c address), 0xf0(offset) 
-r 0x4d (i2c address), version(information)
+### 3.1 Status Register (0x0E) Bit Definition
 
+| Bit | 名稱 | 說明 |
+|-----|------|------|
+| 7–6 | Reserved | 保留 |
+| 5 | `STATUS_BIT_OVERCURRENT` | 任一通道 > 9300 (93 A)，debounce 確認後置 1 |
+| 4 | `STATUS_BIT_HW_WARNING` | INA3221 硬體警告中斷觸發 |
+| 3 | `STATUS_BIT_IMBALANCE` | 電流不平衡（Max-Min > 閥值），debounce 確認後置 1 |
+| 2–0 | Reserved | 保留 |
 
-3.1 Special Commands (特殊指令)
+### 3.2 I2C 讀取範例
 
-除了直接讀寫暫存器外，系統還支援特定的指令序列來執行特殊操作。
+```
+# 讀取韌體版本
+Write 0x9A (addr W), 0xF0 (offset)
+Read  0x9B (addr R) → 1 byte (version)
 
-#### Update Imbalance Threshold (更新不平衡閥值)
+# 讀取 Ch1 電流（10mA 單位，LSB first）
+Write 0x9A, 0x30
+Read  0x9B → 2 bytes → value = byte[1]<<8 | byte[0]
+```
 
-此指令允許主機更新 `Imbalance Threshold` 的值，並將其永久寫入 EEPROM。
+---
 
-*   **指令格式**:
-    主機需發送一個 8 位元組的序列。
-    `['U', 'P', 'I', 'T', <B0>, <B1>, <B2>, <B3>]`
+## 3.3 Special Commands (特殊指令)
 
-    *   `'U', 'P', 'I', 'T'`: 固定的 ASCII 指令標頭 (0x55, 0x50, 0x49, 0x54)。
-    *   `<B0>` - `<B3>`: 新的閥值，單位為 mA，以 32 位元小端序 (Little-Endian) 格式表示。
-        *   `<B0>`: LSB (最低有效位元組)
-        *   `<B3>`: MSB (最高有效位元組)
+### Update Imbalance Threshold (更新不平衡閥值)
 
-*   **範例**:
-    若要將閥值設定為 1500 mA (等於 0x000005DC)，主機需發送以下 8 個位元組：
-    `[0x55, 0x50, 0x49, 0x54, 0xDC, 0x05, 0x00, 0x00]`
+格式（8 bytes）: `['U', 'P', 'I', 'T', B0, B1, B2, B3]`
 
-#### Update Countdown Duration (更新警告倒數時間)
+- Header: `0x55 0x50 0x49 0x54`
+- B0–B3: 新閥值（mA），32-bit Little-Endian
 
-此指令允許主機更新 `Countdown Duration` 的值，並將其永久寫入 EEPROM。
+範例（設定為 4000 mA = 0x00000FA0）:
+`[0x55, 0x50, 0x49, 0x54, 0xA0, 0x0F, 0x00, 0x00]`
 
-*   **指令格式**:
-    主機需發送一個 8 位元組的序列。
-    `['U','' ,'C', 'D', <B0>, <B1>, <B2>, <B3>]`
+---
 
-    *   `'U', 'P', 'C', 'D'`: 固定的 ASCII 指令標頭。
-    *   `<B0>` - `<B3>`: 新的倒數時間，單位為 ms，以 32 位元小端序 (Little-Endian) 格式表示。
-        *   `<B0>`: LSB (最低有效位元組)
-        *   `<B3>`: MSB (最高有效位元組)
+### Update Countdown Duration (更新倒數時間暫存器)
 
-*   **範例**:
-    若要將倒數時間設定為 10000 ms (等於 0x00002710)，主機需發送以下 8 個位元組：
-    `[0x55, 0x50, 0x43, 0x44, 0x10, 0x27, 0x00, 0x00]`
+格式（8 bytes）: `['U', 'P', 'C', 'D', B0, B1, B2, B3]`
 
-#### Update SW Debounce Count (更新軟體去抖動計數)
+- Header: `0x55 0x50 0x43 0x44`
+- B0–B3: 時間（ms），32-bit Little-Endian
 
-此指令允許主機更新 `SW Debounce Count` 的值，並將其永久寫入 EEPROM。
+> ⚠️ 此值寫入 EEPROM (`0x08`) 但目前**不影響**保護鎖定時間，鎖定時間固定為 `LATCH_COUNTDOWN_MS = 180000 ms`。
 
-*   **指令格式**:
-    主機需發送一個 5 位元組的序列。
-    `['S', 'W', 'D', 'C', <B0>]`
+---
 
-    *   `'S', 'W', 'D', 'C'`: 固定的 ASCII 指令標頭。
-    *   `<B0>`: 新的去抖動計數值。
+### Update SW Debounce Count (更新軟體去抖動計數)
 
-*   **範例**:
-    若要將去抖動計數設定為 5，主機需發送以下 5 個位元組：
-    `[0x55, 0x50, 0x44, 0x43, 0x05]`
+格式（5 bytes）: `['S', 'W', 'D', 'C', B0]`
 
-#### Update Calibration Data (更新校準資料)
+- Header: `0x53 0x57 0x44 0x43`
+- B0: 新的計數值（uint8）
 
-此指令允許主機更新單一通道的增益 (Gain) 與偏移 (Offset) 值，並將其永久寫入 EEPROM。
+範例（設定為 5）: `[0x53, 0x57, 0x44, 0x43, 0x05]`
 
-*   **指令格式**:
-    主機需發送一個 9 位元組的序列。
-    `['U', 'P', 'C', 'A', <Ch_Idx>, <G0>, <G1>, <O0>, <O1>]`
+---
 
-    *   `'U', 'P', 'C', 'A'`: 固定的 ASCII 指令標頭。
-    *   `<Ch_Idx>`: 要更新的通道索引 (0-5)。
-    *   `<G0>, <G1>`: 16 位元增益值 (Gain)，以小端序 (Little-Endian) 格式表示。
-    *   `<O0>, <O1>`: 16 位元偏移值 (Offset)，以小端序 (Little-Endian) 格式表示。
+### Update Calibration Data (更新校準資料)
 
-*   **範例**:
-    若要將通道 2 (索引為 `0x01`) 的增益設定為 1000 (0x03E8)，偏移設定為 -5 (0xFFFB)，主機需發送以下 9 個位元組：
-    `[0x55, 0x50, 0x43, 0x41, 0x01, 0xE8, 0x03, 0xFB, 0xFF]`
+格式（9 bytes）: `['U', 'P', 'C', 'A', Ch_Idx, G0, G1, O0, O1]`
 
-#### Update Manufacturing Date (更新製造日期)
+- Header: `0x55 0x50 0x43 0x41`
+- Ch_Idx: 通道索引 0–5
+- G0,G1: Gain（16-bit LE）
+- O0,O1: Offset（16-bit LE）
 
-此指令允許主機更新 `Manufacturing Date` 的值，並將其永久寫入 EEPROM。
+範例（Ch2，Gain=1000=0x03E8，Offset=-5=0xFFFB）:
+`[0x55, 0x50, 0x43, 0x41, 0x01, 0xE8, 0x03, 0xFB, 0xFF]`
 
-*   **指令格式**:
-    主機需發送一個 20 位元組的序列。
-    `['U', 'P', 'M', 'F', <D0>, ..., <D15>]`
+---
 
-    *   `'U', 'P', 'M', 'F'`: 固定的 ASCII 指令標頭。
-    *   `<D0>` - `<D15>`: 16 個位元組的製造日期 (ASCII 字串)。如果字串長度小於 16，剩餘部分應以 `0x00` (NULL) 填充。
+### Update Manufacturing Date (更新製造日期)
 
-*   **範例**:
-    若要將製造日期設定為 "20260213"，主機需發送 `[0x55, 0x50, 0x4D, 0x46, '2', '0', '2', '6', '0', '2', '1', '3', 0x00, ..., 0x00]`。
+格式（20 bytes）: `['U', 'P', 'M', 'F', D0, ..., D15]`
 
-#### Update Lot ID (更新批次號碼)
+- Header: `0x55 0x50 0x4D 0x46`
+- D0–D15: 16 bytes ASCII（不足補 0x00）
 
-此指令允許主機更新 `Lot ID` 的值，並將其永久寫入 EEPROM。
+---
 
-*   **指令格式**:
-    主機需發送一個 20 位元組的序列。
-    `['U', 'P', 'L', 'T', <D0>, ..., <D15>]`
+### Update Lot ID (更新批次號碼)
 
-    *   `'U', 'P', 'L', 'T'`: 固定的 ASCII 指令標頭。
-    *   `<D0>` - `<D15>`: 16 個位元組的批次號碼 (ASCII 字串)。如果字串長度小於 16，剩餘部分應以 `0x00` (NULL) 填充。
+格式（20 bytes）: `['U', 'P', 'L', 'T', D0, ..., D15]`
 
-*   **範例**:
-    若要將批次號碼設定為 "A26B-11-XYZ"，主機需發送 `[0x55, 0x50, 0x4C, 0x54, 'A', '2', '6', 'B', '-', '1', '1', '-', 'X', 'Y', 'Z', 0x00, ...]`。
+- Header: `0x55 0x50 0x4C 0x54`
+- D0–D15: 16 bytes ASCII（不足補 0x00）
 
-#### Update Serial Number (更新產品序號)
+---
 
-此指令允許主機更新 `Serial Number` 的值，並將其永久寫入 EEPROM。
+### Update Serial Number (更新產品序號)
 
-*   **指令格式**:
-    主機需發送一個 20 位元組的序列。
-    `['U', 'P', 'S', 'N', <D0>, ..., <D15>]`
+格式（20 bytes）: `['U', 'P', 'S', 'N', D0, ..., D15]`
 
-    *   `'U', 'P', 'S', 'N'`: 固定的 ASCII 指令標頭。
-    *   `<D0>` - `<D15>`: 16 個位元組的產品序號 (ASCII 字串)。如果字串長度小於 16，剩餘部分應以 `0x00` (NULL) 填充。
+- Header: `0x55 0x50 0x53 0x4E`
+- D0–D15: 16 bytes ASCII（不足補 0x00）
 
-*   **範例**:
-    若要將產品序號設定為 "SN-12345"，主機需發送 `[0x55, 0x50, 0x53, 0x4E, 'S', 'N', '-', '1', '2', '3', '4', '5', 0x00, ...]`。
+---
 
-#### Jump to LDROM (ISP Mode)
+### Jump to LDROM (ISP Mode)
 
-此指令使 MCU 重新啟動並進入 LDROM 模式，以準備進行韌體更新 (In-System Programming)。
+格式（7 bytes，固定）: `[0x4E, 0x05, 0x4A, 0x4D, 0x50, 0x4C, 0x44]`
 
-*   **指令格式**:
-    主機需發送一個 7 位元組的序列。
-    `[0x4E, 0x05, 0x4A, 0x4D, 0x50, 0x4C, 0x44]`
+接收後 MCU 將開機來源設定為 LDROM 並觸發軟體重置。
 
-*   **說明**:
-    這是一個固定的二進位指令。接收到此指令後，MCU 會將開機來源設定為 LDROM 並觸發軟體重置。
+---
 
+## 4. EEPROM Memory Layout (Flash Emulation)
 
-4. EEPROM Memory Layout (Flash Emulation)
+MCU 以 Data Flash 模擬 EEPROM，共 **10 KB**（位於 Flash 末端），分為兩個 **5 KB** 區塊。
 
-MCU 使用 Data Flash 模擬 EEPROM。為確保資料安全性，建議配置於兩個獨立的 Flash Page。 (實際位址定義詳見 Section 5)
+| 區塊 | Flash 位址 | 用途 |
+|------|-----------|------|
+| EEPROM 1 (User Config) | `0xD800–0xEBFF` | 系統設定、資產資訊、校準資料 |
+| EEPROM 2 (Event Log)   | `0xEC00–0xFFFF` | 事件異常快照（Ring Buffer） |
 
-4.1 EEPROM 1: Configuration & Asset (Page N)
+### 4.1 EEPROM 1: Configuration & Asset
 
-此區域存放系統參數與資產資料，容量定義為 256 Bytes。
+容量 5 KB（有效使用 256 Bytes 邏輯空間）：
 
-| Address Offset | Field Name          | Size (Bytes) | Description                        |
-|----------------|---------------------|--------------|------------------------------------|
-| 0x00 - 0x03    | PowerOnCount        | 4            | 開機次數 (每次開機 +1)             |
-| 0x04 - 0x07    | IMBALANCE_THRESHOLD | 4            | 不平衡判斷門檻值 (mA)              |
-| 0x08 - 0x0B    | Countdown           | 4            | 關機延遲時間 (ms)                  |
-| 0x0C           | swdebounce          | 1            | 開關去抖動計數                     |
-| 0x0D           | LogHead             | 1            | Ring Buffer 最新指標 (0~11)        |
-| 0x0E - 0x0F    | Reserved            | 2            | 保留區                             |
-| 0x10 - 0x27    | Calib Data          | 24           | 6 Channels x (Gain 2B + Offset 2B) |
-| 0x28 - 0xBF    | Reserved            | 152          | 保留區                             |
-| 0xC0 - 0xCF    | MFG Date            | 16           | 生產日期 (YYYYMMDD) (ASCII)        |
-| 0xD0 - 0xDF    | Lot ID              | 16           | 生產批號 (ASCII)                   |
-| 0xE0 - 0xEF    | Serial Number       | 16           | 產品序號 (ASCII)                   |
+| Address Offset | Field Name           | Size   | Description |
+|----------------|----------------------|--------|-------------|
+| `0x00–0x03`    | PowerOnCount         | 4 B    | 開機次數（每次開機 +1） |
+| `0x04–0x07`    | IMBALANCE_THRESHOLD  | 4 B    | 不平衡閥值（mA），預設 **4000** |
+| `0x08–0x0B`    | Countdown Duration   | 4 B    | 保留（預設 60000 ms，目前不影響保護邏輯） |
+| `0x0C`         | swdebounce           | 1 B    | 軟體去抖動計數，預設 2 |
+| `0x0D`         | LogHead              | 1 B    | Ring Buffer 指標（0–10） |
+| `0x0E–0x0F`    | Reserved             | 2 B    | — |
+| `0x10–0x27`    | Calib Data           | 24 B   | 6 通道 × (Gain 2B + Offset 2B) |
+| `0x28–0xBF`    | Reserved             | 152 B  | — |
+| `0xC0–0xCF`    | MFG Date             | 16 B   | 製造日期 (ASCII) |
+| `0xD0–0xDF`    | Lot ID               | 16 B   | 批次號碼 (ASCII) |
+| `0xE0–0xEF`    | Serial Number        | 16 B   | 產品序號 (ASCII) |
 
+### 4.2 EEPROM 2: Event Logs
 
-4.2 EEPROM 2: Event Logs (Page N+1)
+容量 5 KB（有效使用 242 Bytes）：**11 筆 × 22 Bytes = 242 Bytes**（Ring Buffer）。
 
-此區域為環形緩衝區 (Ring Buffer)，存放最近 12 筆異常事件快照。 總容量 256 Bytes (12 筆 x 20 Bytes = 240 Bytes)。
+| Address Offset  | Field        | Size | Description |
+|-----------------|--------------|------|-------------|
+| `0x000–0x015`   | Log Entry 0  | 22 B | 第 0 筆事故紀錄 |
+| `0x016–0x02B`   | Log Entry 1  | 22 B | 第 1 筆事故紀錄 |
+| ...             | ...          | ...  | ... |
+| `0x0E4–0x0F1`   | Log Entry 10 | 22 B | 第 10 筆事故紀錄 |
+| `0x0F2–...`     | Unused       | —    | — |
 
-| Address Offset | Field Name    | Size | Description          |
-|----------------|---------------|------|----------------------|
-| 0x00 - 0x13    | Log Entry 0   | 20   | 第 0 筆事故紀錄      |
-| 0x14 - 0x27    | Log Entry 1   | 20   | 第 1 筆事故紀錄      |
-| 0x28 - 0x3B    | Log Entry 2   | 20   | 第 2 筆事故紀錄      |
-| ...            | ...           | ...  | ...                  |
-| 0xDC - 0xEF    | Log Entry 11  | 20   | 第 11 筆事故紀錄     |
-| 0xF0 - 0xFF    | Reserved      | 16   | 未使用               |
+**Log Entry Data Structure（單筆 22 Bytes）:**
 
-Log Entry Data Structure (Single Entry - 20 Bytes)
+| Byte Offset | 欄位         | Size | Description |
+|-------------|--------------|------|-------------|
+| `0x00–0x03` | PowerOnCount | 4 B  | 發生當下的開機次數 |
+| `0x04–0x07` | RunTime      | 4 B  | 發生當下的 MCU 運行時間（秒） |
+| `0x08–0x09` | Current Ch1  | 2 B  | 電流快照（單位 10 mA） |
+| `0x0A–0x0B` | Current Ch2  | 2 B  | 電流快照（單位 10 mA） |
+| `0x0C–0x0D` | Current Ch3  | 2 B  | 電流快照（單位 10 mA） |
+| `0x0E–0x0F` | Current Ch4  | 2 B  | 電流快照（單位 10 mA） |
+| `0x10–0x11` | Current Ch5  | 2 B  | 電流快照（單位 10 mA） |
+| `0x12–0x13` | Current Ch6  | 2 B  | 電流快照（單位 10 mA） |
+| `0x14`      | Error Code   | 1 B  | 發生當下的 Status Register（Bit Map） |
+| `0x15`      | Checksum     | 1 B  | Byte 0x00–0x14 的累加 Checksum |
 
-| Byte Offset | Parameter   | Size    | Description                        |
-|-------------|-------------|---------|------------------------------------|
-| 0x00        | p_on        | 4 Bytes | 發生當下的開機次數                 |
-| 0x02        | RunTime     | 4 Bytes | 發生當下的系統運行時間 (秒)        |
-| 0x06        | Current Ch1 | 2 Bytes | 電流快照 (mA)                      |
-| 0x08        | Current Ch2 | 2 Bytes | 電流快照 (mA)                      |
-| 0x0A        | Current Ch3 | 2 Bytes | 電流快照 (mA)                      |
-| 0x0C        | Current Ch4 | 2 Bytes | 電流快照 (mA)                      |
-| 0x0E        | Current Ch5 | 2 Bytes | 電流快照 (mA)                      |
-| 0x10        | Current Ch6 | 2 Bytes | 電流快照 (mA)                      |
-| 0x12        | Error Code  | 1 Byte  | 記錄當下 Status (Bit map)          |
-| 0x13        | Checksum    | 1 Byte  | 本筆 Entry (0x00~0x12) 的 Checksum |
+---
 
-5. Flash Memory Configuration & Boot Sequence
+## 5. Flash Memory Configuration & Boot Sequence
 
-5.1 Flash Memory Map
+### 5.1 Flash Memory Map
 
-MCU 64KB Flash (0x0000_0000 ~ 0x0000_FFFF) 依據需求劃分為 APROM、Checksum 區與 Data EEPROM 區。
+總計 64 KB（`0x0000_0000 – 0x0000_FFFF`）：
 
-Total Size: 64 KB (0x10000 Bytes)
+| Memory Region       | Start Addr    | End Addr      | Size   | 用途 |
+|---------------------|---------------|---------------|--------|------|
+| APROM (Code)        | `0x0000_0000` | `0x0000_D7FB` | ~54 KB | 韌體程式碼 |
+| APROM Checksum      | `0x0000_D7FC` | `0x0000_D7FF` | 4 B    | CRC32 完整性檢查碼 |
+| EEPROM 1 (User)     | `0x0000_D800` | `0x0000_EBFF` | 5 KB   | 系統設定 / 資產資料 |
+| EEPROM 2 (Log)      | `0x0000_EC00` | `0x0000_FFFF` | 5 KB   | 事件 Log Ring Buffer |
 
-Data EEPROM Reserved: 10 KB (Located at end of Flash)
+### 5.2 User Configuration (Config Words)
 
-| Memory Region   | Start Address | End Address   | Size         | Function                          |
-|-----------------|---------------|---------------|--------------|-----------------------------------|
-| APROM (Code)    | 0x0000_0000   | 0x0000_D7FB   | 54 KB - 4B   | 韌體程式碼存放區                  |
-| APROM Checksum  | 0x0000_D7FC   | 0x0000_D7FF   | 4 Bytes      | APROM 完整性檢查碼 (CRC32 or Sum) |
-| Data EEPROM     | 0x0000_D800   | 0x0000_FFFF   | 10 KB        | 模擬 EEPROM 資料區 (Section 4)    |
+| Config Bit | 設定值 | 說明 |
+|------------|--------|------|
+| Boot Selection (CBS) | LDROM Boot | 上電後執行 LDROM |
+| Brown-out Detector (BOD) | Enable | 掉電偵測重置 |
 
-計算公式：Data EEPROM Start = 64KB (0x10000) - 10KB (0x2800) = 0xD800。 計算公式：Checksum Address = Data EEPROM Start (0xD800) - 4 Bytes = 0xD7FC。
+### 5.3 Boot Sequence (LDROM Logic)
 
-5.2 User Configuration (Config Words)
+1. **System Reset**: MCU 上電或重置
+2. **Jump to LDROM**: 依 Config 設定跳至 LDROM
+3. **Integrity Check**: 讀取 `0xD7FC` Checksum，比對 `0x0000–0xD7FB` 計算值
+4. **Branching**:
+   - **PASS**: 重映射 Vector Table → 跳轉至 APROM 執行主程式
+   - **FAIL**: 留在 LDROM，進入 ISP 模式等待更新
 
-燒錄 MCU 時需設定以下 Config bits 以符合 Boot 需求。
+---
 
-Boot Selection (CBS): 設定為 LDROM Boot (系統上電後優先執行 LDROM 程式)。
+## 6. Implementation Notes (開發備註)
 
-Brown-out Detector (BOD): Enable (開啟掉電偵測復位，確保電壓不穩時系統安全重置)。
-
-5.3 Boot Sequence (LDROM Logic)
-
-LDROM 程式負責檢查 APROM 完整性與執行韌體更新。
-
-System Reset: MCU 上電或重置。
-
-Jump to LDROM: 依據 Config 設定，PC 指向 LDROM 起始位址。
-
-Integrity Check:
-
-讀取 0x0000_D7FC 的 Checksum 值。
-
-計算 0x0000_0000 至 0x0000_D7FB 的實際 Checksum。
-
-比較兩者是否一致。
-
-Branching:
-
-PASS (一致): 重映射向量表 (Vector Table Remap) 至 SRAM 或 0x0，跳轉至 APROM (0x0000_0000) 執行主程式。
-
-FAIL (不一致): 停留在 LDROM，進入 ISP 模式等待 Host 下達更新指令。
-
-6. Implementation Notes (開發備註)
-
-I2C Timeout: 因 Flash 寫入時 (特別是 Page Erase) 會佔用數 ms，若此時 Host 發送指令，MCU 需利用 Clock Stretching 或在 I2C ISR 中優先處理，避免 Timeout。
-
-Imbalance Debounce: 建議在 FW 實作一個滑動視窗 (Sliding Window) 或計數器，確認連續 500ms 內電流差異皆大於門檻值才觸發告警，避免負載動態變化時的誤報。
-
-Warning Pin Pull-up: 確保電路板上 INA_WARNING Pin 有接上拉電阻，且 MCU GPIO 設定為 Edge Trigger (Falling Edge) 中斷。
-
-Flash Page Alignment: 確保 Data EEPROM 的 Page N 與 Page N+1 落於 0xD800 之後的物理 Page 邊界上 (M251 Page Size 為 512B，0xD800 為 Page aligned)。
+- **I2C Timeout**: Flash 寫入（Page Erase）需數 ms，MCU 應利用 Clock Stretching 避免 Host Timeout。
+- **Imbalance Debounce**: 連續 `IMBALANCE_DEBOUNCE_COUNT = 3` 次採樣超標才觸發，避免負載動態變化誤報。
+- **Overcurrent Debounce**: 連續 `OVERCURRENT_DEBOUNCE_COUNT = 3` 次採樣任意通道 > 9300（93A）才觸發。
+- **STATE_LATCHED**: 一旦鎖定需**斷電重置**才能恢復正常，MCU 不提供軟體解鎖指令。
+- **Warning Pin Pull-up**: 確保 `INA_WARNING`（PA.3）有上拉電阻，GPIO 設定為 Falling Edge 中斷。
+- **Flash Page Alignment**: Data EEPROM 從 `0xD800` 開始，M251 Page Size 為 512 B，確保 Page 邊界對齊。
+- **Log Ring Buffer**: 最多儲存 **11 筆**紀錄（11 × 22 = 242 Bytes），滿後從索引 0 覆蓋（`LogHead` 循環遞增）。
+- **PS_PGOOD 極性**: Normal 狀態輸出 **Low**，保護觸發後輸出 **High**（與部分舊規格書相反，以此文件為準）。

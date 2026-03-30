@@ -42,8 +42,9 @@
 #define I2C_REG_EVENT_LOG_DATA        0x80 // MCU places the requested log data here (20 bytes from 0x80 to 0x93)
 
 // Status Register Bits
-#define STATUS_BIT_IMBALANCE (1 << 3)
-#define STATUS_BIT_HW_WARNING (1 << 4)
+#define STATUS_BIT_IMBALANCE    (1 << 3)
+#define STATUS_BIT_HW_WARNING   (1 << 4)
+#define STATUS_BIT_OVERCURRENT  (1 << 5)    /* Bit5: Any channel current > OC threshold */
 
 // Buzzer Frequencies
 #define BUZZER_PATTERN_OFF      0
@@ -52,6 +53,14 @@
 
 // Imbalance Protection Parameters
 #define IMBALANCE_DEBOUNCE_COUNT 3
+
+// Overcurrent Protection Parameters
+#define OVERCURRENT_THRESHOLD       9300    /* unit: 10mA (= 93A); trigger if any channel exceeds this */
+#define OVERCURRENT_DEBOUNCE_COUNT  3       /* consecutive detections before event is confirmed */
+
+// Unified Warning Timing
+#define BUZZER_DELAY_MS     20000   /* LED-only phase before buzzer activates (20 s) */
+#define LATCH_COUNTDOWN_MS  180000  /* Total warning duration before PGOOD is asserted (3 min) */
 
 // --- Protection Logic Definitions ---
 // GPIO definitions for alarms (User needs to define these according to the schematic)

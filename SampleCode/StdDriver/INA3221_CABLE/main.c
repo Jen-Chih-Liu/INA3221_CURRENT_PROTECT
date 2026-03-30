@@ -1,4 +1,4 @@
-/******************************************************************************//**
+﻿/******************************************************************************//**
  * @file     main.c
  * @version  V1.00
  * @brief
@@ -31,12 +31,12 @@ EEPROM_Ctx_T eeprom_user;
 extern uint8_t volatile eeprom_ram[256];
 
 // --- Protection Logic Globals ---
-static enum SystemState g_system_state = STATE_NORMAL;
-static uint8_t g_u8ImbalanceDebounceCounter = 0;
-volatile uint32_t g_u32WarningCountdownMs = 0;
-static volatile uint8_t g_u8BuzzerPattern = BUZZER_PATTERN_OFF;
-static uint8_t g_bLogSavedForLatch = 0; // Flag to ensure log is saved only once
-static volatile uint8_t g_u8HwWarningTriggered = 0; // Flag for HW warning interrupt
+static enum SystemState g_system_state         = STATE_NORMAL; /* Unified fault state machine     */
+static uint8_t  g_u8ImbalanceDebounceCounter   = 0;            /* Imbalance debounce counter      */
+static uint8_t  g_u8OcDebounceCounter          = 0;            /* Overcurrent debounce counter    */
+volatile uint32_t g_u32WarningCountdownMs       = 0;            /* Unified latch countdown (ms)    */
+static uint8_t  g_bLogSavedForLatch            = 0;            /* Ensure log saved once per latch */
+static volatile uint8_t g_u8HwWarningTriggered = 0;            /* Flag for HW warning interrupt   */
 volatile uint32_t g_u32McuRunTimeSeconds = 0; // MCU runtime in seconds
 static volatile uint16_t g_u16McuRunTimeMillis = 0; // Millisecond counter for runtime
 extern uint8_t volatile u8EVEN_INDEX_FLAG;
@@ -106,64 +106,52 @@ void SysTick_Handler(void)
     /* Clear interrupt flag */
     SysTick->VAL = 0;
 
-    // --- Handle Warning Countdown and Buzzer ---
+    // --- Unified Warning: LED (0-20 s) -> LED+Buzzer (20 s-3 min) -> Latch (3 min) ---
     if (g_u32WarningCountdownMs > 0)
     {
         g_u32WarningCountdownMs--;
-        if (g_u8BuzzerPattern == BUZZER_PATTERN_1HZ)
-        {
-            if ((g_u32WarningCountdownMs % 1000) < 500)
-            {
-                BUZZER_PORT->DOUT |= BUZZER_PIN; // Buzzer ON
-							  LED_ALARM_PORT->DOUT |= LED_ALARM_PIN;
-            }
-            else
-            {
-                BUZZER_PORT->DOUT &= ~BUZZER_PIN; // Buzzer OFF
-							  LED_ALARM_PORT->DOUT &= ~LED_ALARM_PIN;
-            }
-        }
-				#if 1
-        else if (g_u8BuzzerPattern == BUZZER_PATTERN_2HZ)
-        {
-            if ((g_u32WarningCountdownMs % 500) < 250) // 2Hz means 500ms cycle, 250ms ON, 250ms OFF
-            {
-              BUZZER_PORT->DOUT |= BUZZER_PIN; // Buzzer ON
-							LED_ALARM_PORT->DOUT |= LED_ALARM_PIN;
-            }
-            else
-            {
-                BUZZER_PORT->DOUT &= ~BUZZER_PIN; // Buzzer OFF
-							LED_ALARM_PORT->DOUT &= ~LED_ALARM_PIN;
-            }
-        }
-				#endif
-        else
-        {
-            BUZZER_PORT->DOUT &= ~BUZZER_PIN; // BUZZER_PATTERN_OFF or unknown
-					 LED_ALARM_PORT->DOUT |= LED_ALARM_PIN;
-        }
 
-				#if 0
         if (g_u32WarningCountdownMs == 0)
         {
-            // Countdown finished.
-            BUZZER_PORT->DOUT &= ~BUZZER_PIN;
-            g_u8BuzzerPattern = BUZZER_PATTERN_OFF; // Ensure buzzer is off
-            
-            // If the countdown finished due to an imbalance warning, latch the system and set PGOOD to low.
+            /* Countdown expired -> latch system */
             if (g_system_state == STATE_WARNING_COUNTDOWN)
+                g_system_state = STATE_LATCHED;
+            LED_ALARM_PORT->DOUT |=  LED_ALARM_PIN; /* Solid LED on latch */
+            BUZZER_PORT->DOUT    &= ~BUZZER_PIN;    /* Buzzer off after latch */
+        }
+        else if ((LATCH_COUNTDOWN_MS - g_u32WarningCountdownMs) < BUZZER_DELAY_MS)
+        {
+            /* Phase 1 (0 - 20 s): LED 1 Hz blink, Buzzer silent */
+            if (((LATCH_COUNTDOWN_MS - g_u32WarningCountdownMs) % 1000) < 500)
+                LED_ALARM_PORT->DOUT |=  LED_ALARM_PIN;
+            else
+                LED_ALARM_PORT->DOUT &= ~LED_ALARM_PIN;
+            BUZZER_PORT->DOUT &= ~BUZZER_PIN;
+        }
+        else
+        {
+            /* Phase 2 (20 s - 3 min): LED + Buzzer 2 Hz blink */
+            if (((LATCH_COUNTDOWN_MS - g_u32WarningCountdownMs) % 500) < 250)
             {
-                //
-                g_system_state = STATE_LATCHED;       // Latch the system, requires power cycle to reset
+                LED_ALARM_PORT->DOUT |= LED_ALARM_PIN;
+                BUZZER_PORT->DOUT    |= BUZZER_PIN;
+            }
+            else
+            {
+                LED_ALARM_PORT->DOUT &= ~LED_ALARM_PIN;
+                BUZZER_PORT->DOUT    &= ~BUZZER_PIN;
             }
         }
-				#endif
+    }
+    else if (g_system_state == STATE_LATCHED)
+    {
+        LED_ALARM_PORT->DOUT |=  LED_ALARM_PIN; /* Keep LED solid on */
+        BUZZER_PORT->DOUT    &= ~BUZZER_PIN;
     }
     else
     {
-        BUZZER_PORT->DOUT &= ~BUZZER_PIN; // Ensure buzzer is off if no countdown
-        g_u8BuzzerPattern = BUZZER_PATTERN_OFF; // Reset buzzer pattern
+        LED_ALARM_PORT->DOUT &= ~LED_ALARM_PIN; /* All clear */
+        BUZZER_PORT->DOUT    &= ~BUZZER_PIN;
     }
 
     /* Get monitor data */
@@ -450,7 +438,7 @@ void Protection_Handler(void)
 		
 		if ((g_u8GetEndFlag_1 == 1) &&(g_u8GetEndFlag_0 == 1))
 		{
-			__disable_irq();
+			//__disable_irq();
         /* --- Protection 1: Current Imbalance Check --- */
         if (g_system_state != STATE_LATCHED)
         {
@@ -476,58 +464,85 @@ void Protection_Handler(void)
             //if((min_current!=0)&&(max_current!=0))
 						//if(min_current!=0)
 						{
-            // 3. Check imbalance condition (Threshold is in mA, currents are in 10mA)
+            // 3. Imbalance debounce (Threshold in mA, currents in 10mA)
             if ((max_current - min_current) > (g_AppConfig.u32IMBALANCE_THRESHOLD / 10))
             {
                 if (g_u8ImbalanceDebounceCounter < IMBALANCE_DEBOUNCE_COUNT)
-                {
                     g_u8ImbalanceDebounceCounter++;
-                }
             }
             else
             {
-                // Condition cleared, reset debounce counter
                 g_u8ImbalanceDebounceCounter = 0;
             }
-					  }
-            // 4. Handle state transitions based on debounce
-            if (g_u8ImbalanceDebounceCounter >= IMBALANCE_DEBOUNCE_COUNT)
+
+            // 4. Overcurrent debounce (any channel > OVERCURRENT_THRESHOLD = 93A)
+            if (max_current > OVERCURRENT_THRESHOLD)
             {
-                // Imbalance event confirmed
-                if (g_system_state == STATE_NORMAL)
-                {
-                    // --- Trigger Warning Action ---
-                    g_system_state = STATE_WARNING_COUNTDOWN;
-                    g_u32WarningCountdownMs = g_AppConfig.u32Countdown;
-                    g_u8BuzzerPattern = BUZZER_PATTERN_1HZ; // Set 1Hz buzzer
-                    eeprom_ram[I2C_REG_STATUS_OFFSET] |= STATUS_BIT_IMBALANCE;
-                    // Turn on LED
-                    LED_ALARM_PORT->DOUT |= LED_ALARM_PIN;
-                    // Buzzer is handled by SysTick_Handler
-                }
+                if (g_u8OcDebounceCounter < OVERCURRENT_DEBOUNCE_COUNT)
+                    g_u8OcDebounceCounter++;
             }
-            else if (g_system_state == STATE_WARNING_COUNTDOWN)
+            else
             {
-                // Imbalance event not present or cleared, return to normal
-                g_system_state = STATE_NORMAL;
-                g_u32WarningCountdownMs = 0;
-                g_u8BuzzerPattern = BUZZER_PATTERN_OFF;
+                g_u8OcDebounceCounter = 0;
+            }
+					  }
+            // 5. Update I2C status bits independently
+            if (g_u8ImbalanceDebounceCounter >= IMBALANCE_DEBOUNCE_COUNT)
+                eeprom_ram[I2C_REG_STATUS_OFFSET] |=  STATUS_BIT_IMBALANCE;
+            else
                 eeprom_ram[I2C_REG_STATUS_OFFSET] &= ~STATUS_BIT_IMBALANCE;
-                LED_ALARM_PORT->DOUT &= ~LED_ALARM_PIN;
-                BUZZER_PORT->DOUT &= ~BUZZER_PIN;
+
+            if (g_u8OcDebounceCounter >= OVERCURRENT_DEBOUNCE_COUNT)
+                eeprom_ram[I2C_REG_STATUS_OFFSET] |=  STATUS_BIT_OVERCURRENT;
+            else
+                eeprom_ram[I2C_REG_STATUS_OFFSET] &= ~STATUS_BIT_OVERCURRENT;
+
+            // 6. Unified fault state machine
+            // Either fault (OC or Imbalance) triggers the same sequence:
+            //   T+ 0 s  : LED 1 Hz blink (no buzzer)
+            //   T+20 s  : LED + Buzzer 2 Hz blink
+            //   T+ 3 min: PS_PGOOD asserted (system latched, requires power cycle)
+            {
+                uint8_t bAnyFaultActive =
+                    (g_u8ImbalanceDebounceCounter >= IMBALANCE_DEBOUNCE_COUNT) ||
+                    (g_u8OcDebounceCounter        >= OVERCURRENT_DEBOUNCE_COUNT);
+
+                if (bAnyFaultActive)
+                {
+                    if (g_system_state == STATE_NORMAL)
+                    {
+                        /* Fault confirmed — start unified 3-minute countdown */
+                        g_system_state          = STATE_WARNING_COUNTDOWN;
+                        g_u32WarningCountdownMs = LATCH_COUNTDOWN_MS; /* 180 000 ms */
+                        g_bLogSavedForLatch     = 0;
+                    }
+                    /* If already in WARNING_COUNTDOWN, let countdown run */
+                }
+                else
+                {
+                    if (g_system_state == STATE_WARNING_COUNTDOWN)
+                    {
+                        /* All faults cleared before latch — return to normal */
+                        g_system_state          = STATE_NORMAL;
+                        g_u32WarningCountdownMs = 0;
+                        LED_ALARM_PORT->DOUT    &= ~LED_ALARM_PIN;
+                        BUZZER_PORT->DOUT       &= ~BUZZER_PIN;
+                    }
+                }
             }
         }
 
+        /* --- Latch: save log once and assert PGOOD --- */
         if (g_system_state == STATE_LATCHED)
         {
             if (g_bLogSavedForLatch == 0)
             {
                 Save_Log_Entry();
-                g_bLogSavedForLatch = 1; // Ensure log is saved only once per latch event
+                g_bLogSavedForLatch = 1;
             }
-            PS_PGOOD_PORT->DOUT |= PS_PGOOD_PIN; // Set PGOOD to high (Protection state)
+            PS_PGOOD_PORT->DOUT |= PS_PGOOD_PIN; /* Assert PGOOD (protection active) */
         }
-__enable_irq();
+//__enable_irq();
 			}
 
     /* --- Protection 2: HW Warning Check (triggered by GPIO interrupt) --- */
