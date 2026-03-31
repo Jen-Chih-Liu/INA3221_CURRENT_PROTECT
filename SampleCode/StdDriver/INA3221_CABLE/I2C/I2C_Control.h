@@ -30,6 +30,10 @@ extern uint8_t au8UpdateData[LEN_MAX_I2C_DATA];
 #define CMD_LEN_ISP     7
 #define CMD_LEN_UPDATE_Imbalance_Threshold  8
 #define CMD_LEN_UPDATE_Imbalance_STR 4
+#define CMD_LEN_UPDATE_OC_Threshold         8   /* 4-byte "UPOC" + 4-byte uint32 value */
+#define CMD_LEN_UPDATE_OC_STR               4
+#define CMD_LEN_UPDATE_UC_Threshold         8   /* 4-byte "UPUC" + 4-byte uint32 value */
+#define CMD_LEN_UPDATE_UC_STR               4
 #define DATA_LEN_GET_POWER_INFO    16
 #define DATA_OFFSET_GET_POWER_INFO 4
 extern uint8_t Data_Get_Power_Info[DATA_LEN_GET_POWER_INFO];
