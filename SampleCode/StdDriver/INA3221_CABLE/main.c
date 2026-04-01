@@ -465,13 +465,15 @@ void Event_Log_Handler(void);
 void Peripherals_Init(void)
 {
     initial_eeprom_ram(); /* Populate fixed fields of the I2C register map */
-
+  /* Unlock protected registers */
+    SYS_UnlockReg();
     /* Enable GPIO port clocks */
     CLK_EnableModuleClock(GPC_MODULE);
     CLK_EnableModuleClock(GPA_MODULE);
     CLK_EnableModuleClock(GPB_MODULE);
     CLK_EnableModuleClock(GPF_MODULE);
-
+    /* Lock protected registers */
+    SYS_LockReg();
     /* Set safe default output levels before configuring GPIO modes */
     PS_PGOOD_PORT->DOUT &= ~PS_PGOOD_PIN;   // PS_PGOOD low  = normal (not in protection)
     LED_ALARM_PORT->DOUT &= ~LED_ALARM_PIN; // Alarm LED off initially
@@ -487,7 +489,8 @@ void Peripherals_Init(void)
     /* Configure INA_WARNING (PF.2) as input with falling-edge interrupt */
     GPIO_SetMode(INA_WARNING_PORT, INA_WARNING_PIN, GPIO_MODE_INPUT);
     GPIO_EnableInt(INA_WARNING_PORT, INA_WARNING_PIN, GPIO_INT_FALLING);
-    NVIC_EnableIRQ(GPF_IRQn);                            // GPF interrupt for INA_WARNING
+		INA_WARNING_PORT->INTEN=0x4;    //fix pf2 inerrupt error
+		NVIC_EnableIRQ(GPF_IRQn);                            // GPF interrupt for INA_WARNING
     NVIC_SetPriority(GPF_IRQn, INT_PRIORITY_HIGH);       // High priority — must not be delayed
     GPIO_SET_DEBOUNCE_TIME(GPIO_DBCTL_DBCLKSRC_HCLK, GPIO_DBCTL_DBCLKSEL_1024); // ~21 us debounce
     GPIO_ENABLE_DEBOUNCE(INA_WARNING_PORT, INA_WARNING_PIN);
