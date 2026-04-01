@@ -13,8 +13,8 @@
 #define DEFAULT_COUNTDOWN_MS            60000
 #define DEFAULT_SW_DEBOUNCE             2
 #define DEFAULT_LOG_HEAD                0
-#define DEFAULT_OC_THRESHOLD            9300    /* unit: mA (= 9.3A) */
-#define DEFAULT_UC_THRESHOLD            500     /* unit: mA (= 500mA) */
+#define DEFAULT_OC_THRESHOLD            9200    /* unit: mA (= 9.3A) */
+//#define DEFAULT_UC_THRESHOLD            500     /* unit: mA (= 500mA) */
 // Asset Information Sizes (as per readme.md EEPROM layout)
 #define EEPROM_SERIAL_NUMBER_SIZE       16
 #define EEPROM_LOT_ID_SIZE              16 // Corrected from 16
@@ -25,7 +25,7 @@
 
 // EEPROM offsets for configurable protection thresholds (next free space after CalibData 0x10-0x27)
 #define EE_OFFSET_OC_THRESHOLD          0x28    // size: 4 (Overcurrent threshold in mA)
-#define EE_OFFSET_UC_THRESHOLD          0x2C    // size: 4 (Undercurrent threshold in mA)
+//#define EE_OFFSET_UC_THRESHOLD          0x2C    // size: 4 (Undercurrent threshold in mA)
 
 
 // I2C Register Map Offsets for Asset Data (from readme.md)
@@ -51,7 +51,7 @@
 #define STATUS_BIT_IMBALANCE    (1 << 3)
 #define STATUS_BIT_HW_WARNING   (1 << 4)
 #define STATUS_BIT_OVERCURRENT  (1 << 5)    /* Bit5: Any channel current > OC threshold */
-#define STATUS_BIT_UNDERCURRENT (1 << 6)    /* Bit6: Any channel current < UC threshold */
+//#define STATUS_BIT_UNDERCURRENT (1 << 6)    /* Bit6: Any channel current < UC threshold */
 
 // Buzzer Frequencies
 #define BUZZER_PATTERN_OFF      0

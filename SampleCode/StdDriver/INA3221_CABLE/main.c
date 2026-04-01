@@ -51,7 +51,7 @@ extern volatile uint8_t u8UPMFFlag;
 extern volatile uint8_t u8UPLTFlag;
 extern volatile uint8_t u8UPSNFlag;
 extern volatile uint8_t u8UPOCFlag;  /* Update OC Threshold flag */
-extern volatile uint8_t u8UPUCFlag;  /* Update UC Threshold flag */
+//extern volatile uint8_t u8UPUCFlag;  /* Update UC Threshold flag */
 uint8_t g_au8SerialNumber[EEPROM_SERIAL_NUMBER_SIZE] = {0};
 uint8_t g_au8LotID[EEPROM_LOT_ID_SIZE] = {0};
 uint8_t g_au8MFGDate[EEPROM_MFG_DATE_SIZE] = {0};
@@ -338,7 +338,7 @@ void Peripherals_Init(void)
       CLK_EnableModuleClock(GPA_MODULE);
 		 CLK_EnableModuleClock(GPB_MODULE);
 			 CLK_EnableModuleClock(GPF_MODULE);
-	 PS_PGOOD_PORT->DOUT |= PS_PGOOD_PIN;   // Set PGOOD to high (Normal) initially
+	 PS_PGOOD_PORT->DOUT &= ~PS_PGOOD_PIN;   // Set PGOOD to low (Normal) initially
    LED_ALARM_PORT->DOUT &= ~LED_ALARM_PIN; // Turn off LED initially
     BUZZER_PORT->DOUT &= ~BUZZER_PIN;     // Turn off Buzzer initially
    
@@ -403,7 +403,7 @@ void Config_Load(void)
     Init_App_Setting_U8(&eeprom_user, EE_OFFSET_SW_DEBOUNCE, &g_AppConfig.u8swdebounce, DEFAULT_SW_DEBOUNCE);
     Init_App_Setting_U8(&eeprom_user, EE_OFFSET_LOG_HEAD, &g_AppConfig.u8LogHead, DEFAULT_LOG_HEAD);
     Init_App_Setting_U32(&eeprom_user, EE_OFFSET_OC_THRESHOLD, &g_AppConfig.u32OcThreshold, DEFAULT_OC_THRESHOLD);
-    Init_App_Setting_U32(&eeprom_user, EE_OFFSET_UC_THRESHOLD, &g_AppConfig.u32UcThreshold, DEFAULT_UC_THRESHOLD);
+    //Init_App_Setting_U32(&eeprom_user, EE_OFFSET_UC_THRESHOLD, &g_AppConfig.u32UcThreshold, DEFAULT_UC_THRESHOLD);
 
     // --- Initialize Calibration Data from EEPROM ---
     Read_EEPROM(&eeprom_user, EE_OFFSET_CALIB_DATA, (uint8_t *)&g_CalibData, sizeof(CalibData_T));
@@ -437,7 +437,7 @@ void Config_Load(void)
     eeprom_ram[EE_OFFSET_SW_DEBOUNCE] = g_AppConfig.u8swdebounce;
     eeprom_ram[EE_OFFSET_LOG_HEAD] = g_AppConfig.u8LogHead;
     memcpy((void *)&eeprom_ram[EE_OFFSET_OC_THRESHOLD], &g_AppConfig.u32OcThreshold, sizeof(uint32_t));
-    memcpy((void *)&eeprom_ram[EE_OFFSET_UC_THRESHOLD], &g_AppConfig.u32UcThreshold, sizeof(uint32_t));
+    //memcpy((void *)&eeprom_ram[EE_OFFSET_UC_THRESHOLD], &g_AppConfig.u32UcThreshold, sizeof(uint32_t));
     // Copy calibration data to the correct I2C register map area in eeprom_ram
     memcpy((void *)&eeprom_ram[EE_OFFSET_CALIB_DATA], &g_CalibData, sizeof(CalibData_T));
 
@@ -519,7 +519,7 @@ void Protection_Handler(void)
             {
                 g_u8OcDebounceCounter = 0;
             }
-
+#if 0
             // 4b. Undercurrent debounce (any channel < UC threshold)
             if (min_current < (g_AppConfig.u32UcThreshold / 10))
             {
@@ -530,6 +530,7 @@ void Protection_Handler(void)
             {
                 g_u8UcDebounceCounter = 0;
             }
+#endif                
 					  }
             // 5. Update I2C status bits independently
             if (g_u8ImbalanceDebounceCounter >= IMBALANCE_DEBOUNCE_COUNT)
@@ -541,12 +542,12 @@ void Protection_Handler(void)
                 eeprom_ram[I2C_REG_STATUS_OFFSET] |=  STATUS_BIT_OVERCURRENT;
             else
                 eeprom_ram[I2C_REG_STATUS_OFFSET] &= ~STATUS_BIT_OVERCURRENT;
-
+#if 0
             if (g_u8UcDebounceCounter >= UNDERCURRENT_DEBOUNCE_COUNT)
                 eeprom_ram[I2C_REG_STATUS_OFFSET] |=  STATUS_BIT_UNDERCURRENT;
             else
                 eeprom_ram[I2C_REG_STATUS_OFFSET] &= ~STATUS_BIT_UNDERCURRENT;
-
+#endif
             // 6. Unified fault state machine
             // Either fault (OC or Imbalance) triggers the same sequence:
             //   T+ 0 s  : LED 1 Hz blink (no buzzer)
@@ -555,8 +556,8 @@ void Protection_Handler(void)
             {
                 uint8_t bAnyFaultActive =
                     (g_u8ImbalanceDebounceCounter >= IMBALANCE_DEBOUNCE_COUNT) ||
-                    (g_u8OcDebounceCounter        >= OVERCURRENT_DEBOUNCE_COUNT) ||
-                    (g_u8UcDebounceCounter        >= UNDERCURRENT_DEBOUNCE_COUNT);
+                    (g_u8OcDebounceCounter        >= OVERCURRENT_DEBOUNCE_COUNT);
+                    //(g_u8UcDebounceCounter        >= UNDERCURRENT_DEBOUNCE_COUNT);
 
                 if (bAnyFaultActive)
                 {
@@ -591,7 +592,7 @@ void Protection_Handler(void)
                 Save_Log_Entry();
                 g_bLogSavedForLatch = 1;
             }
-            PS_PGOOD_PORT->DOUT &= ~PS_PGOOD_PIN; /* Assert PGOOD active low (protection active) */
+            PS_PGOOD_PORT->DOUT |= PS_PGOOD_PIN; /* Assert PGOOD active high (protection active) */
         }
 //__enable_irq();
 			}
@@ -608,7 +609,7 @@ void Protection_Handler(void)
             // Now save the log with the fresh data
             Save_Log_Entry();
             g_bLogSavedForLatch = 1; // Ensure log is saved only once per latch event
-            PS_PGOOD_PORT->DOUT &= ~PS_PGOOD_PIN; // Set PGOOD to low (Protection state)
+            PS_PGOOD_PORT->DOUT |= PS_PGOOD_PIN; // Set PGOOD to high (Protection state)
         }
         g_u8HwWarningTriggered = 0; // Clear the trigger flag after handling
     }
@@ -677,11 +678,13 @@ void Event_Log_Handler(void)
             u8UPOCFlag = 0;
             Write_EEPROM(&eeprom_user, EE_OFFSET_OC_THRESHOLD, (uint8_t *)&g_AppConfig.u32OcThreshold, sizeof(uint32_t));
         }
+				#if 0 
         if (u8UPUCFlag == 1)
         {
             u8UPUCFlag = 0;
             Write_EEPROM(&eeprom_user, EE_OFFSET_UC_THRESHOLD, (uint8_t *)&g_AppConfig.u32UcThreshold, sizeof(uint32_t));
         }
+				#endif
         if (u8UPCDFlag == 1)
         {
             u8UPCDFlag = 0; // Clear the flag

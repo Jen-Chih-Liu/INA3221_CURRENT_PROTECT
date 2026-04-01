@@ -36,7 +36,7 @@ extern uint8_t au8UpdateData[LEN_MAX_I2C_DATA];
 #define CMD_LEN_UPDATE_UC_STR               4
 #define DATA_LEN_GET_POWER_INFO    16
 #define DATA_OFFSET_GET_POWER_INFO 4
-extern uint8_t Data_Get_Power_Info[DATA_LEN_GET_POWER_INFO];
+//extern uint8_t Data_Get_Power_Info[DATA_LEN_GET_POWER_INFO];
 #define CMD_OFFSET_GET_POWER_INFO  0xDE
 
 /* Update FRU */
