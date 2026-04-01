@@ -12,22 +12,22 @@
 /*!<Define Current Monitor */
 // <h> Eanble Current Monitor
 // <h> Current Monitor 0
-// <q.0> Use Current Monitor 0 
+// <q.0> Use Current Monitor 0
 #define USE_MONITOR_0            0x00000001
 /* Current Monitor 0 */
 #if (USE_MONITOR_0 == TRUE)
-// <h> Channel Selection
-// <q.0> Use Channel 1
-#define USE_MONITOR_0_CH1        0x00000001
-// <q.0> Use Channel 2
-#define USE_MONITOR_0_CH2        0x00000001
-// <q.0> Use Channel 3
-#define USE_MONITOR_0_CH3        0x00000001
-// </h>
+    // <h> Channel Selection
+    // <q.0> Use Channel 1
+    #define USE_MONITOR_0_CH1        0x00000001
+    // <q.0> Use Channel 2
+    #define USE_MONITOR_0_CH2        0x00000001
+    // <q.0> Use Channel 3
+    #define USE_MONITOR_0_CH3        0x00000001
+    // </h>
 #else
-#define USE_MONITOR_0_CH1        0x00000000
-#define USE_MONITOR_0_CH2        0x00000000
-#define USE_MONITOR_0_CH3        0x00000000
+    #define USE_MONITOR_0_CH1        0x00000000
+    #define USE_MONITOR_0_CH2        0x00000000
+    #define USE_MONITOR_0_CH3        0x00000000
 #endif
 // </h>
 
@@ -36,18 +36,18 @@
 #define USE_MONITOR_1            0x00000001
 /* Current Monitor 1 */
 #if (USE_MONITOR_1 == TRUE)
-// <h> Channel Selection
-// <q.0> Use Channel 1
-#define USE_MONITOR_1_CH1        0x00000001
-// <q.0> Use Channel 2
-#define USE_MONITOR_1_CH2        0x00000001
-// <q.0> Use Channel 3
-#define USE_MONITOR_1_CH3        0x00000001
-// </h>
+    // <h> Channel Selection
+    // <q.0> Use Channel 1
+    #define USE_MONITOR_1_CH1        0x00000001
+    // <q.0> Use Channel 2
+    #define USE_MONITOR_1_CH2        0x00000001
+    // <q.0> Use Channel 3
+    #define USE_MONITOR_1_CH3        0x00000001
+    // </h>
 #else
-#define USE_MONITOR_1_CH1        0x00000000
-#define USE_MONITOR_1_CH2        0x00000000
-#define USE_MONITOR_1_CH3        0x00000000
+    #define USE_MONITOR_1_CH1        0x00000000
+    #define USE_MONITOR_1_CH2        0x00000000
+    #define USE_MONITOR_1_CH3        0x00000000
 #endif
 // </h>
 // </h>

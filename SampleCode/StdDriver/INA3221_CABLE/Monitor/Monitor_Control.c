@@ -11,7 +11,8 @@
 #include "NuMicro.h"
 //#include "I2C_Control.h"
 #include "Monitor_Control.h"
-
+#include "nsp_driver.h"
+#include "nsp_PlaySample.h"
 extern uint8_t volatile eeprom_ram[256];
 #define I2C_REG_MONITOR_DATA_OFFSET 0x30
 
@@ -312,7 +313,7 @@ void I2C1_MasterTRx(I2C_T *i2c, uint32_t u32Status)
         I2C1_Error_Hanlder(i2c);
     }
 }
-
+volatile	unsigned int NP23_pid=0;
 void I2C1_Init(void)
 {
 #if (INA3221_MOCK_TEST == 0)
@@ -332,6 +333,14 @@ void I2C1_Init(void)
     /* Open I2C module and set bus clock */
     I2C_Open(I2C1, SPEED_MONIOR_0_BUS);
 
+	
+
+	  N_READ_ID(&NP23_pid);
+      if (NP23_pid == nsp23_id)
+      {
+          N_SET_VOL(128);
+      }
+	
     //initial ina3221 sample 16
 
     uint8_t data[3];

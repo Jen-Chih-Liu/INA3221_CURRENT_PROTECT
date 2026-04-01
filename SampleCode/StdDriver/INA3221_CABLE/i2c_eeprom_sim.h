@@ -82,6 +82,9 @@
 #define PS_PGOOD_PORT  PF    // PLEASE VERIFY: This pin is based on readme.md, please confirm with schematic
 #define PS_PGOOD_PIN   BIT3  // PLEASE VERIFY: This pin is based on readme.md, please confirm with schematic
 
+#define NSP23_RST_PORT PB
+#define NSP23_RST_PIN  BIT14
+
 // System State Machine
 enum SystemState
 {
