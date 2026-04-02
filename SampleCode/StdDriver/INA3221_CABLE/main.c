@@ -760,8 +760,8 @@ void Protection_Handler(void)
         if (g_bLogSavedForLatch == 0)
         {
             // Immediately read the latest sensor data to get a complete snapshot
-            Read_Monitor_Data_0();
-            Read_Monitor_Data_1();
+            //Read_Monitor_Data_0();
+           // Read_Monitor_Data_1();
 
             // Now save the log with the fresh data
             Save_Log_Entry();

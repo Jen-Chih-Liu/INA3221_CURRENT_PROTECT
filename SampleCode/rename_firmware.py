@@ -78,7 +78,7 @@ def main():
     firmware_map = {
         #                      (prefix,         version)
         "APROM_SUM.bin": ("msi_gpu_cp", "00_00_01"), # APROM version
-        "LDROM.bin":     ("msi_gpu_ld", "00_00_01"), # LDROM version (please change)
+        #"LDROM.bin":     ("msi_gpu_ld", "00_00_01"), # LDROM version (please change)
     }
 
     for filename, (prefix, version) in firmware_map.items():

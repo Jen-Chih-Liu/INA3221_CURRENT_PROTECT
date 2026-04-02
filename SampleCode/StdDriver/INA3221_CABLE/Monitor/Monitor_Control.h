@@ -10,7 +10,7 @@
 
 /* Set to 1 to enable mock test mode without actual INA3221 hardware */
 #define INA3221_MOCK_TEST           0
-//#define eeprom_mock_test 1 
+//#define eeprom_mock_test 1
 #include <stdint.h>
 #include <NuMicro.h>
 #include "device.h"
@@ -84,8 +84,8 @@ extern Monitor_Data_T au8MonitorData_1[MONITOR_MAX_CHANNEL];
 extern uint32_t TimeCounterMonitorUpdate;
 #define TIMER_MONITOR_UPDATE   200 //unit ms
 #define ina3221_config 0x7527  //refer ina3221 config spec.extern volatile uint8_t u8MonitorFlag;
-#define ina3221_Warning_Alert_Limit  0x2518 
-//#define ina3221_Warning_Alert_Limit  0x1770 // for test verison
+//#define ina3221_Warning_Alert_Limit  0x2518
+#define ina3221_Warning_Alert_Limit  0x1770 // for test verison
 extern volatile uint8_t u8MonitorFlag;
 /*-------------------------------------------------------------*/
 

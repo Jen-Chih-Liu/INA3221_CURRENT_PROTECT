@@ -15,7 +15,8 @@
 #include "nsp_PlaySample.h"
 extern uint8_t volatile eeprom_ram[256];
 #define I2C_REG_MONITOR_DATA_OFFSET 0x30
-
+volatile    uint8_t data[3];
+volatile	  uint8_t data_read[3];
 /*---------------------------------------------------------------------------------------------------------*/
 /* Global variables                                                                                        */
 /*---------------------------------------------------------------------------------------------------------*/
@@ -69,7 +70,9 @@ void Mock_Update_Monitor_Data_0(void)
             eeprom_ram[u16VoltageOffset + 1] = (uint8_t)(data >> 8);
         }
     }
+
     mock_raw_data += 50; // Increment data for next call
+
     if (mock_raw_data > 4000) mock_raw_data = 1000;
 }
 
@@ -98,7 +101,9 @@ void Mock_Update_Monitor_Data_1(void)
             eeprom_ram[u16VoltageOffset + 1] = (uint8_t)(data >> 8);
         }
     }
+
     mock_raw_data_1 += 75; // Increment data for next call with a different step
+
     if (mock_raw_data_1 > 5000) mock_raw_data_1 = 2000;
 }
 #endif
@@ -245,8 +250,8 @@ void I2C1_MasterTRx(I2C_T *i2c, uint32_t u32Status)
             sign = g_u16TempData_0[0] & BIT7;
             data = (((g_u16TempData_0[0] << 8) | g_u16TempData_0[1]) & 0x7FF8) >> 3;
 
-//            au8MonitorData_0[g_u8TargetCH_0].Current.Sign = (sign)?1:0;
-//            au8MonitorData_0[g_u8TargetCH_0].Current.Value = (data * 40 * SHUNT_RATIO_MOLECULAR_0) / (SHUNT_RATIO_DENOMINATOR_0 * 1000);
+            //            au8MonitorData_0[g_u8TargetCH_0].Current.Sign = (sign)?1:0;
+            //            au8MonitorData_0[g_u8TargetCH_0].Current.Value = (data * 40 * SHUNT_RATIO_MOLECULAR_0) / (SHUNT_RATIO_DENOMINATOR_0 * 1000);
 
             /* Update report data to eeprom_ram */
             data = ((data * 40 * Shunt_Ratio_Molecular_0[g_u8TargetCH_0]) / (Shunt_Ratio_Denomination_0[g_u8TargetCH_0] * 1000) + 5) / 10;
@@ -313,7 +318,7 @@ void I2C1_MasterTRx(I2C_T *i2c, uint32_t u32Status)
         I2C1_Error_Hanlder(i2c);
     }
 }
-volatile	unsigned int NP23_pid=0;
+volatile    unsigned int NP23_pid = 0;
 void I2C1_Init(void)
 {
 #if (INA3221_MOCK_TEST == 0)
@@ -333,57 +338,130 @@ void I2C1_Init(void)
     /* Open I2C module and set bus clock */
     I2C_Open(I2C1, SPEED_MONIOR_0_BUS);
 
-	
+    CLK_SysTickDelay(50000);
+	  
+#if 1
+    N_READ_ID(&NP23_pid);
 
-	  N_READ_ID(&NP23_pid);
-      if (NP23_pid == nsp23_id)
-      {
-          N_SET_VOL(128);
-      }
-	
+    if (NP23_pid == nsp23_id)
+    {
+        N_SET_VOL(128);
+    }
+
+#endif
     //initial ina3221 sample 16
 
-    uint8_t data[3];
-	   // uint8_t dataread[2];
-	  data[0]=0X0; //address
-    data[1] = (ina3221_config>>8)&0xff;
-    data[2] = (ina3221_config)&0xff;
-    //I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X0);
-    //wait i2c stop finish.
-    I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 3);
-    //I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X0);
-		//I2C_ReadMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, dataread, 2);
-    
+    //uint8_t data[3];
+		//uint8_t data_read[3];
+
+    data[0] = 0X0; //address
+    data[1] = (ina3221_config >> 8) & 0xff;
+    data[2] = (ina3221_config) & 0xff;
+
+	loop1:				    	
+    if (I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 3)!=3)
+		{
+			CLK_SysTickDelay(20000);	
+		goto loop1;
+		}
+		#if 1
+	  I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X0);
+    I2C_ReadMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data_read, 2);
+			if ((data[1]!=data_read[0])||(data[2]!=data_read[1]))
+		{
+		CLK_SysTickDelay(20000);
+		goto loop1;
+		}
 		
-//Warning-Alert Limit
-    data[0]=0x08;
-    data[1] = (ina3221_Warning_Alert_Limit>>8)&0xff;
-    data[2] = (ina3221_Warning_Alert_Limit)&0xff;
-   // I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X08);
-    //I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
-I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 3);
-data[0]=0x0a;
+		#endif
+		CLK_SysTickDelay(20000);	
 
-    data[1] = (ina3221_Warning_Alert_Limit>>8)&0xff;
-    data[2] = (ina3221_Warning_Alert_Limit)&0xff;
-		I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 3);
-    //I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X0A);
-    //I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
 
-data[0]=0x0c;
-    data[1] = (ina3221_Warning_Alert_Limit>>8)&0xff;
-    data[2] = (ina3221_Warning_Alert_Limit)&0xff;
-			I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 3);
-    //I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X0C);
-    //I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
 
-data[0]=0x0e;
-    data[1] = (ina3221_Warning_Alert_Limit>>8)&0xff;;
-    data[2] = (ina3221_Warning_Alert_Limit)&0xff;
-		I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 3);
-    //I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X0E);
-    //I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
+    //Warning-Alert Limit
+    data[0] = 0x08;
+    data[1] = (ina3221_Warning_Alert_Limit >> 8) & 0xff;
+    data[2] = (ina3221_Warning_Alert_Limit) & 0xff;
 
+loop2:		
+		   
+    if (I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 3)!=3)
+		{
+					CLK_SysTickDelay(20000);	
+		goto loop2;		
+		}
+		#if 1
+			  I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X08);
+    I2C_ReadMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data_read, 2);
+				if ((data[1]!=data_read[0])||(data[2]!=data_read[1]))
+		{
+		CLK_SysTickDelay(20000);
+		goto loop2;
+		}
+		#endif
+		
+			CLK_SysTickDelay(20000);	
+    data[0] = 0x0a;
+    data[1] = (ina3221_Warning_Alert_Limit >> 8) & 0xff;
+    data[2] = (ina3221_Warning_Alert_Limit) & 0xff;
+loop3:	
+    if (I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 3)!=3)
+		{
+		CLK_SysTickDelay(20000);	
+		goto loop3;
+		}
+		#if 1
+					  I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X0a);
+    I2C_ReadMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data_read, 2);
+				if ((data[1]!=data_read[0])||(data[2]!=data_read[1]))
+		{
+		CLK_SysTickDelay(20000);
+		goto loop3;
+		}
+		#endif
+		CLK_SysTickDelay(20000);	
+
+
+    data[0] = 0x0c;
+    data[1] = (ina3221_Warning_Alert_Limit >> 8) & 0xff;
+    data[2] = (ina3221_Warning_Alert_Limit) & 0xff;
+loop4:	
+    if (I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 3)!=3)
+			{
+		CLK_SysTickDelay(20000);	
+		goto loop4;
+		}
+			#if 1
+					  I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X0c);
+    I2C_ReadMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data_read, 2);
+				if ((data[1]!=data_read[0])||(data[2]!=data_read[1]))
+		{
+		CLK_SysTickDelay(20000);
+		goto loop4;
+		}	
+		#endif
+		CLK_SysTickDelay(20000);	
+
+
+    data[0] = 0x0e;
+    data[1] = (ina3221_Warning_Alert_Limit >> 8) & 0xff;;
+    data[2] = (ina3221_Warning_Alert_Limit) & 0xff;
+loop5:	
+    if (I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 3)!=3)
+				{
+		CLK_SysTickDelay(20000);	
+		goto loop5;
+		}
+				#if 1
+							  I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X0e);
+    I2C_ReadMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data_read, 2);
+				if ((data[1]!=data_read[0])||(data[2]!=data_read[1]))
+		{
+		CLK_SysTickDelay(20000);
+		goto loop5;
+		}
+    #endif
+    CLK_SysTickDelay(20000);
 
     /* Enable I2C interrupt */
     I2C_EnableInt(I2C1);
@@ -578,7 +656,7 @@ void UI2C1_MasterTRx(UI2C_T *ui2c, uint32_t u32Status)
             data = (((g_u16TempData_1[0] << 8) | g_u16TempData_1[1]) & 0x7FF8) >> 3;
 
             //au8MonitorData_1[g_u8TargetCH_1].Voltage.Sign = (sign) ? 1 : 0;
-            //au8MonitorData_1[g_u8TargetCH_1].Voltage.Value = data * 8;            
+            //au8MonitorData_1[g_u8TargetCH_1].Voltage.Value = data * 8;
 
             /* Update report data to eeprom_ram for channels 4-6 */
             data = (data * 8 + 5) / 10;
@@ -653,42 +731,115 @@ void UI2C1_Init(void)
 
 
     //initial ina3221 sample 16
-    uint8_t data[3];
-	data[0]=0x0; 
-    data[1] = (ina3221_config>>8)&0xff;//0X7A;
-    data[2] = (ina3221_config)&0xff;//0X47;
-		UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 3);
-    //UI2C_WriteByte(UI2C1, ADDRESS_MONIOR_0_7BIT, 0X0);
-    //UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
 
+    data[0] = 0x0;
+    data[1] = (ina3221_config >> 8) & 0xff; 
+    data[2] = (ina3221_config) & 0xff; 
+loop6:
+    
+    if (UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_1_7BIT, data, 3)!=3)	
+   	{
+    CLK_SysTickDelay(20000);
+		goto loop6;
+		}
+		#if 1
+		UI2C_WriteByte(UI2C1, ADDRESS_MONIOR_0_7BIT, 0X0);
+    UI2C_ReadMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data_read, 2);
+		if ((data[1]!=data_read[0])||(data[2]!=data_read[1]))
+		{
+		CLK_SysTickDelay(20000);
+		goto loop6;
+		}
+		#endif
+		
+CLK_SysTickDelay(20000);
 
-//Warning-Alert Limit
-data[0]=0x8;
-    data[1] = (ina3221_Warning_Alert_Limit>>8)&0xff;
-    data[2] = (ina3221_Warning_Alert_Limit)&0xff;
-		UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 3);
-    //UI2C_WriteByte(UI2C1, ADDRESS_MONIOR_0_7BIT, 0X08);
-    //UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
-data[0]=0xa;
-    data[0] = (ina3221_Warning_Alert_Limit>>8)&0xff;
-    data[1] = (ina3221_Warning_Alert_Limit)&0xff;
-		UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 3);
-    //UI2C_WriteByte(UI2C1, ADDRESS_MONIOR_0_7BIT, 0X0A);
-    //UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
+    //Warning-Alert Limit
+    data[0] = 0x8;
+    data[1] = (ina3221_Warning_Alert_Limit >> 8) & 0xff;
+    data[2] = (ina3221_Warning_Alert_Limit) & 0xff;
+		
+loop7:
+    
+    if (UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_1_7BIT, data, 3)!=3)
+    {
+    CLK_SysTickDelay(20000);
+		goto loop7;
+		}
+		#if 1
+		UI2C_WriteByte(UI2C1, ADDRESS_MONIOR_1_7BIT, 0X08);
+    UI2C_ReadMultiBytes(UI2C1, ADDRESS_MONIOR_1_7BIT, data_read, 2);
+				if ((data[1]!=data_read[0])||(data[2]!=data_read[1]))
+		{
+		CLK_SysTickDelay(20000);
+		goto loop7;
+		}
+		#endif
+		
+    CLK_SysTickDelay(20000);
+    data[0] = 0xa;
+    data[1] = (ina3221_Warning_Alert_Limit >> 8) & 0xff;
+    data[2] = (ina3221_Warning_Alert_Limit) & 0xff;
+loop8:
+    
+    if (UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_1_7BIT, data, 3)!=3)
+    {
+    CLK_SysTickDelay(20000);
+		goto loop8;
+		}
+		#if 1
+		UI2C_WriteByte(UI2C1, ADDRESS_MONIOR_1_7BIT, 0X0a);
+    UI2C_ReadMultiBytes(UI2C1, ADDRESS_MONIOR_1_7BIT, data_read, 2);
+		if ((data[1]!=data_read[0])||(data[2]!=data_read[1]))
+		{
+		CLK_SysTickDelay(20000);
+		goto loop8;
+		}
+		#endif
+    CLK_SysTickDelay(20000);
 
-data[0]=0xc;
-    data[0] = (ina3221_Warning_Alert_Limit>>8)&0xff;
-    data[1] = (ina3221_Warning_Alert_Limit)&0xff;
-		UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 3);
-    //UI2C_WriteByte(UI2C1, ADDRESS_MONIOR_0_7BIT, 0X0C);
-    //UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
+    data[0] = 0xc;
+    data[1] = (ina3221_Warning_Alert_Limit >> 8) & 0xff;
+    data[2] = (ina3221_Warning_Alert_Limit) & 0xff;
+loop9:
+    
+    if (UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_1_7BIT, data, 3)!=3)
+    {
+    CLK_SysTickDelay(20000);
+		goto loop9;
+		}
+		#if 1
+		UI2C_WriteByte(UI2C1, ADDRESS_MONIOR_1_7BIT, 0X0c);
+    UI2C_ReadMultiBytes(UI2C1, ADDRESS_MONIOR_1_7BIT, data_read, 2);
+			if ((data[1]!=data_read[0])||(data[2]!=data_read[1]))
+		{
+		CLK_SysTickDelay(20000);
+		goto loop9;
+		}
+		#endif
+    CLK_SysTickDelay(20000);
+    
 
-data[0]=0xe;
-    data[0] = (ina3221_Warning_Alert_Limit>>8)&0xff;;
-    data[1] = (ina3221_Warning_Alert_Limit)&0xff;
-		UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 3);
-    //UI2C_WriteByte(UI2C1, ADDRESS_MONIOR_0_7BIT, 0X0E);
-    //UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data, 2);
+    data[0] = 0xe;
+    data[1] = (ina3221_Warning_Alert_Limit >> 8) & 0xff;;
+    data[2] = (ina3221_Warning_Alert_Limit) & 0xff;
+		
+loop10:    
+    if (UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_1_7BIT, data, 3)!=3)
+    {
+    CLK_SysTickDelay(20000);
+		goto loop10;
+		}
+		#if 1
+	  UI2C_WriteByte(UI2C1, ADDRESS_MONIOR_0_7BIT, 0X0e);
+    UI2C_ReadMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data_read, 2);
+				if ((data[1]!=data_read[0])||(data[2]!=data_read[1]))
+		{
+		CLK_SysTickDelay(20000);
+		goto loop10;
+		}
+		#endif
+    CLK_SysTickDelay(20000);
 
     /* Enable UI2C1 interrupt */
     UI2C_ENABLE_PROT_INT(UI2C1, (UI2C_PROTIEN_ACKIEN_Msk | UI2C_PROTIEN_NACKIEN_Msk | UI2C_PROTIEN_STORIEN_Msk | UI2C_PROTIEN_STARIEN_Msk));
@@ -709,6 +860,7 @@ void Read_Monitor_Data_0(void)
     /* In mock mode, directly update eeprom_ram with simulated data */
     Mock_Update_Monitor_Data_0();
 #else
+
     /* In real mode, perform I2C communication */
     if (g_u8GetEndFlag_0 == 1) // Only start a new transaction if the previous one is finished
     {
@@ -745,6 +897,7 @@ void Read_Monitor_Data_0(void)
             I2C_SET_CONTROL_REG(I2C1, I2C_CTL_STA);
         }
     }
+
 #endif
 }
 
@@ -754,6 +907,7 @@ void Read_Monitor_Data_1(void)
     /* In mock mode, directly update eeprom_ram with simulated data */
     Mock_Update_Monitor_Data_1(); // Call the mock function for the second monitor
 #else
+
     /* In real mode, perform I2C communication */
     if (g_u8GetEndFlag_1 == 1) // Only start a new transaction if the previous one is finished
     {
@@ -792,5 +946,6 @@ void Read_Monitor_Data_1(void)
             UI2C_SET_CONTROL_REG(UI2C1, UI2C_CTL_STA);
         }
     }
+
 #endif
 }
