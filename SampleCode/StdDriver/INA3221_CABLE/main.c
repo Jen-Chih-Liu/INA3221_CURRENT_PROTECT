@@ -702,7 +702,38 @@ void Protection_Handler(void)
                 eeprom_ram[I2C_REG_STATUS_OFFSET] &= ~STATUS_BIT_UNDERCURRENT;
 
 #endif
-            // 6. Unified fault state machine
+            // 6. Update per-channel alert registers
+            //    OC_ALERT_CH      (0x2C): bit i set when currents[i] > OC threshold
+            //    IMBALANCE_ALERT_CH (0x2D): bit i set when channel deviates from mean > imbalance_thresh/2
+            {
+                uint8_t  oc_ch_mask  = 0;
+                uint8_t  imb_ch_mask = 0;
+                uint32_t mean        = 0;
+                uint16_t half_thresh = (uint16_t)(g_AppConfig.u32IMBALANCE_THRESHOLD / 20); /* half thresh in 10mA units */
+                int32_t  diff;
+
+                for (i = 0; i < 6; i++)
+                {
+                    if (currents[i] > (g_AppConfig.u32OcThreshold / 10))
+                        oc_ch_mask |= (uint8_t)(1 << i);
+                    mean += currents[i];
+                }
+
+                mean /= 6;
+
+                for (i = 0; i < 6; i++)
+                {
+                    diff = (int32_t)currents[i] - (int32_t)mean;
+                    if (diff < 0) diff = -diff;
+                    if (diff > (int32_t)half_thresh)
+                        imb_ch_mask |= (uint8_t)(1 << i);
+                }
+
+                eeprom_ram[I2C_REG_OC_ALERT_CH]        = oc_ch_mask;
+                eeprom_ram[I2C_REG_IMBALANCE_ALERT_CH] = imb_ch_mask;
+            }
+
+            // 7. Unified fault state machine
             // Either fault (OC or Imbalance) triggers the same sequence:
             //   T+ 0 s  : LED 1 Hz blink (no buzzer)
             //   T+20 s  : LED + Buzzer 2 Hz blink

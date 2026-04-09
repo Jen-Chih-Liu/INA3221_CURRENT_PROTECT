@@ -27,6 +27,11 @@
 #define EE_OFFSET_OC_THRESHOLD          0x28    // size: 4 (Overcurrent threshold in mA)
 //#define EE_OFFSET_UC_THRESHOLD          0x2C    // size: 4 (Undercurrent threshold in mA)
 
+// Per-channel Alert Registers (read-only, updated every monitoring cycle)
+// Bit[0]=CH1  Bit[1]=CH2  Bit[2]=CH3  Bit[3]=CH4  Bit[4]=CH5  Bit[5]=CH6  Bits[7:6]=0
+#define I2C_REG_OC_ALERT_CH             0x2C    // OC  alert per-channel bitmap; valid when STATUS_BIT_OVERCURRENT is set
+#define I2C_REG_IMBALANCE_ALERT_CH      0x2D    // Imbalance alert per-channel bitmap; valid when STATUS_BIT_IMBALANCE is set
+
 
 // I2C Register Map Offsets for Asset Data (from readme.md)
 #define I2C_REG_OFFSET_SERIAL_NUMBER    0xE0
