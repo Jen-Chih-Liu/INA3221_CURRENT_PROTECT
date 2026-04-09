@@ -453,7 +453,7 @@ loop5:
 		goto loop5;
 		}
 				#if 1
-							  I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X0e);
+		I2C_WriteByte(I2C1, ADDRESS_MONIOR_0_7BIT, 0X0e);
     I2C_ReadMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data_read, 2);
 				if ((data[1]!=data_read[0])||(data[2]!=data_read[1]))
 		{
