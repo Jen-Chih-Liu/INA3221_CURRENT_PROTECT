@@ -73,15 +73,18 @@ uint32_t Init_EEPROM(EEPROM_Ctx_T *ctx, uint32_t base_addr, uint32_t data_amount
     if(ctx->Flash_BaseAddr % Flash_Page_Size != 0) return Err_WriteBlockStatus;
 
     /* 靜態記憶體分配 (Static Allocation) */
-    if (gs_u8AllocatedCount >= MAX_EEPROM_INSTANCES) {
-        printf("EEPROM Init Error: Max Instances Reached!\n");
-        return 0xFF; // 超出支援的實例數量
+    if (ctx->Written_Data == NULL)
+    {
+        /* 首次初始化：從靜態池取得緩衝區 */
+        if (gs_u8AllocatedCount >= MAX_EEPROM_INSTANCES) {
+            printf("EEPROM Init Error: Max Instances Reached!\n");
+            return 0xFF; // 超出支援的實例數量
+        }
+        // 指向靜態池中的下一塊緩衝區
+        ctx->Written_Data = gs_BufferPool[gs_u8AllocatedCount++];
     }
 
-    // 指向靜態池中的下一塊緩衝區
-    ctx->Written_Data = gs_BufferPool[gs_u8AllocatedCount++];
-
-    /* 初始化 SRAM 為 0xFF */
+    /* 初始化 SRAM 為 0xFF（首次或重新初始化均執行）*/
     for(i = 0; i < ctx->Amount_of_Data; i++)
     {
         ctx->Written_Data[i] = 0xFF;
@@ -140,6 +143,9 @@ static void Search_Valid_Page(EEPROM_Ctx_T *ctx)
         {
             if(addr < ctx->Amount_of_Data) ctx->Written_Data[addr] = data;
 
+            /* 預設為頁面已滿，若找到空位則在迴圈中覆寫 */
+            ctx->Current_Cursor = Flash_Page_Size;
+
             for(i = 4; i < Flash_Page_Size; i += 4)
             {
                 /* Check Odd */
@@ -171,6 +177,8 @@ static void Search_Valid_Page(EEPROM_Ctx_T *ctx)
                     if(addr < ctx->Amount_of_Data) ctx->Written_Data[addr] = data;
                 }
             }
+            /* 若 Current_Cursor == Flash_Page_Size，表示頁面已滿，
+               Write_Data 會偵測到此狀態並立即觸發 Manage_Next_Page */
         }
     }
     // 這裡不需要 free，因為 Page_Status_Array 是區域變數，函式結束自動釋放
@@ -190,6 +198,13 @@ uint32_t Write_Data(EEPROM_Ctx_T *ctx, uint8_t index, uint8_t data)
 
     if(index >= ctx->Amount_of_Data) return Err_ErrorIndex;
     if(ctx->Written_Data[index] == data) return 0; // 資料相同不寫入
+
+    /* 若斷電前頁面已滿但尚未翻頁，重開機後先完成翻頁再寫入，
+       避免 Cursor=0 時把資料寫到頁頭（Cycle Counter 位置）造成損毀 */
+    if(ctx->Current_Cursor >= Flash_Page_Size)
+    {
+        Manage_Next_Page(ctx);
+    }
 
     FMC_Enable();
 
@@ -220,6 +235,7 @@ uint32_t Write_Data(EEPROM_Ctx_T *ctx, uint8_t index, uint8_t data)
     }
     return 0;
 }
+
 
 static void Manage_Next_Page(EEPROM_Ctx_T *ctx)
 {
@@ -266,6 +282,9 @@ static void Manage_Next_Page(EEPROM_Ctx_T *ctx)
     /* Copy the rest */
     for(j = 4; i < ctx->Amount_of_Data; i++)
     {
+        /* 防衛性邊界檢查：確保寫入偏移不超出 Flash 頁面範圍 */
+        if(j >= Flash_Page_Size) break;
+
         if(ctx->Written_Data[i] == 0xFF) continue;
 
         if(data_flag == 0)

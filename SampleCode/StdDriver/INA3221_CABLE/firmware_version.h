@@ -3,8 +3,9 @@
 
 #include <stdint.h>
 
-typedef struct {
-    uint32_t magic_word;        // 識別碼 (例如 0xABCD1234)    
+typedef struct
+{
+    uint32_t magic_word;        // 識別碼 (例如 0xABCD1234)
     uint8_t  version_major;     // 主版本號
     uint8_t  version_minor;     // 次版本號
     uint8_t  version_patch;     // 修訂號

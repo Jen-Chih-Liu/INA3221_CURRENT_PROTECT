@@ -10,7 +10,7 @@
 
 /* Set to 1 to enable mock test mode without actual INA3221 hardware */
 #define INA3221_MOCK_TEST           0
-//#define eeprom_mock_test 1
+#define eeprom_mock_test  0
 #include <stdint.h>
 #include <NuMicro.h>
 #include "device.h"
@@ -92,9 +92,9 @@ extern volatile uint8_t u8MonitorFlag;
 
 /*-------------------------------------------------------------*/
 typedef void (*I2C_MONITOR_FUNC)(I2C_T *i2c, uint32_t u32Status);
-static I2C_MONITOR_FUNC s_I2C1HandlerFn = NULL;
 typedef void (*UI2C_MONITOR_FUNC)(UI2C_T *ui2c, uint32_t u32Status);
-static UI2C_MONITOR_FUNC s_UI2C1HandlerFn = NULL;
+extern I2C_MONITOR_FUNC s_I2C1HandlerFn;
+extern UI2C_MONITOR_FUNC s_UI2C1HandlerFn;
 
 void I2C1_Init(void);
 void UI2C1_Init(void);

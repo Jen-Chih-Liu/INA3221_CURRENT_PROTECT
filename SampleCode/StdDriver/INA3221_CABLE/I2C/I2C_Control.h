@@ -45,7 +45,7 @@ extern uint8_t au8UpdateData[LEN_MAX_I2C_DATA];
 
 /*-------------------------------------------------------------*/
 typedef void (*I2C_FUNC)(I2C_T *i2c, uint32_t u32Status);
-static I2C_FUNC s_I2C0HandlerFn = NULL;
+extern I2C_FUNC s_I2C0HandlerFn;
 
 void I2C0_Init(void);
 /*-------------------------------------------------------------*/

@@ -27,6 +27,7 @@ volatile uint32_t u32UpdateTargetAddress = 0;
 volatile uint8_t u8UpdateTargetOffset = 0;
 volatile uint8_t u8UpdateTargetSize = 0;
 volatile uint8_t u8UpdateISPFlag = 0;
+I2C_FUNC s_I2C0HandlerFn = NULL;  /* I2C0 回呼函式指標（定義於此，header 提供 extern 宣告）*/
 volatile uint8_t u8UPITFlag = 0;
 volatile uint8_t u8UPCDFlag = 0;
 volatile uint8_t u8UPDCFlag = 0;
@@ -145,9 +146,17 @@ void I2C_SlaveTRx(I2C_T *i2c, uint32_t u32Status)
         /* Request FRU table */
         if (u8ReportEEPROMFlag == 1)
         {
-          
-                I2C_SET_DATA(i2c, eeprom_ram[u8RxPtr]); 
-                u8RxPtr=u8RxPtr+1;
+            /* 上界保護：防止 uint8_t 從 0xFF 繞回 0x00，讀到不預期的寄存器 */
+            if (u8RxPtr < sizeof(eeprom_ram))
+            {
+                I2C_SET_DATA(i2c, eeprom_ram[u8RxPtr]);
+                u8RxPtr++;
+            }
+            else
+            {
+                I2C_SET_DATA(i2c, 0xFF);  /* 越界時回傳 0xFF（無效值） */
+                u8ReportEEPROMFlag = 0;   /* 終止後續讀取 */
+            }
         }
         else
         {
@@ -160,9 +169,18 @@ void I2C_SlaveTRx(I2C_T *i2c, uint32_t u32Status)
     {
         /* Request FRU table */
         if (u8ReportEEPROMFlag == 1)
-        {                            
-                I2C_SET_DATA(i2c, eeprom_ram[u8RxPtr]); //fw version
-                u8RxPtr=u8RxPtr+1;              
+        {
+            /* 上界保護：防止 uint8_t 從 0xFF 繞回 0x00，讀到不預期的寄存器 */
+            if (u8RxPtr < sizeof(eeprom_ram))
+            {
+                I2C_SET_DATA(i2c, eeprom_ram[u8RxPtr]);
+                u8RxPtr++;
+            }
+            else
+            {
+                I2C_SET_DATA(i2c, 0xFF);  /* 越界時回傳 0xFF（無效值） */
+                u8ReportEEPROMFlag = 0;   /* 終止後續讀取 */
+            }
         }
         else
         {

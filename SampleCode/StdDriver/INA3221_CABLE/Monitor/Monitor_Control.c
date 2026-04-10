@@ -44,6 +44,8 @@ Monitor_Data_T au8MonitorData_1[MONITOR_MAX_CHANNEL];
 
 uint32_t TimeCounterMonitorUpdate;
 volatile uint8_t u8MonitorFlag;
+I2C_MONITOR_FUNC  s_I2C1HandlerFn  = NULL;  /* I2C1 回呼函式指標（定義於此，header 提供 extern 宣告）*/
+UI2C_MONITOR_FUNC s_UI2C1HandlerFn = NULL;  /* UI2C1 回呼函式指標（定義於此，header 提供 extern 宣告）*/
 
 #if (INA3221_MOCK_TEST == 1)
 /* Mock data generation for testing without hardware */

@@ -1,15 +1,15 @@
 #include <stdio.h>
-#include <string.h> // 用於 memcmp
-#include <stdlib.h> // 用於 rand()
+#include <string.h> // for memcmp
+#include <stdlib.h> // for rand()
 
 #include "eeprom_sim.h"
 #include "eeprom_test.h"
 
-/* --- 測試組態 --- */
+/* --- Test Configuration --- */
 #define STRESS_TEST_TOTAL_WRITES   5000
 #define USE_RANDOM_ACCESS          1
 
-/* --- 內部輔助函式宣告 --- */
+/* --- Internal Helper Function Declarations --- */
 static void print_progress(int current, int total);
 extern uint32_t Init_EEPROM(EEPROM_Ctx_T *ctx, uint32_t base_addr, uint32_t data_amount, uint32_t use_pages);
 
@@ -17,14 +17,14 @@ static void print_progress(int current, int total)
 {
     if ((current > 0) && (current % (total / 10)) == 0)
     {
-        printf("... 進度: %d / %d (%d%%)\n", current, total, (current * 100) / total);
+        printf("... Progress: %d / %d (%d%%)\n", current, total, (current * 100) / total);
     }
 }
 
 /**
-  * @brief  對 eeprom_sim 模組執行全面的壓力與邊界測試
-  * @param  ctx: 指向已初始化的主 EEPROM context
-  * @return 0 代表成功, 其他值為錯誤碼
+  * @brief  Perform comprehensive stress and boundary tests on the eeprom_sim module
+  * @param  ctx: Pointer to an initialized main EEPROM context
+  * @return 0 on success, non-zero error code on failure
   */
 int eeprom_stress_test(EEPROM_Ctx_T *ctx)
 {
@@ -34,34 +34,34 @@ int eeprom_stress_test(EEPROM_Ctx_T *ctx)
     uint16_t start_cycle_count, end_cycle_count;
 
     printf("\n============================================\n");
-    printf("--- 開始 EEPROM 綜合性自動化測試 ---\n");
+    printf("--- Starting EEPROM Comprehensive Automated Test ---\n");
     printf("============================================\n");
-    printf("EEPROM 大小: %ld bytes\n", ctx->Amount_of_Data);
-    printf("Flash 分頁數: %ld\n", ctx->Amount_Pages);
+    printf("EEPROM Size: %ld bytes\n", ctx->Amount_of_Data);
+    printf("Flash Pages: %ld\n", ctx->Amount_Pages);
 
-    /* --- Phase 1: 初始資料完整性檢查 --- */
-    printf("\n[Phase 1] 初始寫入與基礎讀取測試...\n");
+    /* --- Phase 1: Initial Data Integrity Check --- */
+    printf("\n[Phase 1] Initial write and basic read test...\n");
     for (i = 0; i < ctx->Amount_of_Data; i++) {
-        golden_buffer[i] = (uint8_t)(i ^ 0xAA); // 使用稍微複雜的 Pattern
+        golden_buffer[i] = (uint8_t)(i ^ 0xAA); // Use a slightly more complex pattern
     }
 
     ret = Write_EEPROM(ctx, 0, golden_buffer, ctx->Amount_of_Data);
     if (ret != 0) {
-        printf("錯誤: Phase 1 初始寫入失敗! 錯誤碼: %ld\n", ret);
+        printf("Error: Phase 1 initial write failed! Error code: %ld\n", ret);
 		while(1);
         return -1;
     }
 
     ret = Read_EEPROM(ctx, 0, read_buffer, ctx->Amount_of_Data);
     if (memcmp(golden_buffer, read_buffer, ctx->Amount_of_Data) != 0) {
-        printf("錯誤: Phase 1 初始寫入後資料不匹配!\n");
+        printf("Error: Phase 1 data mismatch after initial write!\n");
         while(1);
 		return -1;
     }
-    printf("=> Phase 1 通過.\n");
+    printf("=> Phase 1 passed.\n");
 
-    /* --- Phase 2: 分頁滾動與隨機寫入壓力測試 --- */
-    printf("\n[Phase 2] 進行 %d 次隨機寫入與分頁滾動測試...\n", STRESS_TEST_TOTAL_WRITES);
+    /* --- Phase 2: Page Rollover and Random Write Stress Test --- */
+    printf("\n[Phase 2] Performing %d random writes and page rollover test...\n", STRESS_TEST_TOTAL_WRITES);
     start_cycle_count = Get_Cycle_Counter(ctx);
 
     for (i = 0; i < STRESS_TEST_TOTAL_WRITES; i++)
@@ -71,92 +71,92 @@ int eeprom_stress_test(EEPROM_Ctx_T *ctx)
 
         ret = Write_Data(ctx, index, data);
         if (ret != 0) {
-            printf("錯誤: Phase 2 第 %ld 次寫入失敗! 錯誤碼: %ld\n", i, ret);
+            printf("Error: Phase 2 write #%ld failed! Error code: %ld\n", i, ret);
 			while(1);
             return -2;
         }
-        golden_buffer[index] = data; // 同步黃金樣本
+        golden_buffer[index] = data; // Sync golden sample
         print_progress(i, STRESS_TEST_TOTAL_WRITES);
     }
     
     end_cycle_count = Get_Cycle_Counter(ctx);
-    printf("=> 發生分頁滾動 (Page Rollovers): %u 次\n", end_cycle_count - start_cycle_count);
+    printf("=> Page Rollovers occurred: %u\n", end_cycle_count - start_cycle_count);
 
-    // Phase 2 最終驗證
+    // Phase 2 final verification
     Read_EEPROM(ctx, 0, read_buffer, ctx->Amount_of_Data);
     if (memcmp(golden_buffer, read_buffer, ctx->Amount_of_Data) != 0) {
-        printf("錯誤: Phase 2 壓力測試後資料不匹配!\n");
+        printf("Error: Phase 2 data mismatch after stress test!\n");
 		while(1);
         return -2;
     }
-    printf("=> Phase 2 通過.\n");
+    printf("=> Phase 2 passed.\n");
 
 
-    /* --- Phase 3: 相同資料寫入優化測試 --- */
-    printf("\n[Phase 3] 測試寫入相同資料時的優化機制...\n");
+    /* --- Phase 3: Same-Data Write Optimization Test --- */
+    printf("\n[Phase 3] Testing write optimization for identical data...\n");
     uint32_t cursor_before = ctx->Current_Cursor;
     uint32_t page_before = ctx->Current_Valid_Page;
     
-    // 寫入與原本完全相同的資料
+    // Write exactly the same data as before
     ret = Write_Data(ctx, 5, golden_buffer[5]); 
     if (ret != 0) return -3;
 
     if (ctx->Current_Cursor != cursor_before || ctx->Current_Valid_Page != page_before) {
-        printf("錯誤: 寫入相同資料卻消耗了 Flash 空間！游標發生了移動。\n");
+        printf("Error: Writing identical data consumed Flash space! Cursor moved.\n");
 		while(1);
         return -3;
     }
-    printf("=> Phase 3 通過 (游標未移動，優化生效).\n");
+    printf("=> Phase 3 passed (cursor unchanged, optimization effective).\n");
 
 
-    /* --- Phase 4: 邊界條件與錯誤防護測試 (Error Injection) --- */
-    printf("\n[Phase 4] 邊界條件與越界存取防護測試...\n");
+    /* --- Phase 4: Boundary Condition and Error Protection Test (Error Injection) --- */
+    printf("\n[Phase 4] Boundary condition and out-of-bounds access protection test...\n");
     
-    // 測試 1: 寫入越界 index
+    // Test 1: Write with out-of-bounds index
     ret = Write_Data(ctx, ctx->Amount_of_Data, 0xFF);
     if (ret == 0) {
-        printf("錯誤: 越界寫入 Write_Data 沒有被攔截!\n");
+        printf("Error: Out-of-bounds Write_Data was not intercepted!\n");
 		while(1);
         return -4;
     }
 
-    // 測試 2: Read_EEPROM 長度越界
+    // Test 2: Read_EEPROM with out-of-bounds length
     ret = Read_EEPROM(ctx, ctx->Amount_of_Data - 1, read_buffer, 2);
     if (ret == 0) {
-        printf("錯誤: 越界讀取 Read_EEPROM 沒有被攔截!\n");
+        printf("Error: Out-of-bounds Read_EEPROM was not intercepted!\n");
 		while(1);
         return -4;
     }
-    printf("=> Phase 4 通過 (防護機制正常作動).\n");
+    printf("=> Phase 4 passed (protection mechanism working correctly).\n");
 
 
-    /* --- Phase 5: 軟體重啟 / 資料重建測試 (Re-initialization) --- */
-    /* 注意：為了避免再次呼叫 Init_EEPROM 消耗掉 gs_u8AllocatedCount，
-       建議你的 Init_EEPROM 加入判斷：
-       if (ctx->Written_Data == NULL) { 申請記憶體... } 
-       這裡我們模擬系統重啟，重新呼叫 Init_EEPROM 解析 Flash。
+    /* --- Phase 5: Software Restart / Data Reconstruction Test (Re-initialization) --- */
+    /* Init_EEPROM 已支援重複呼叫：
+       當 ctx->Written_Data != NULL 時，跳過靜態池分配、直接重用既有 buffer，
+       不會消耗額外的 gs_u8AllocatedCount slot（無靜態池洩漏）。
+       此處將 Written_Data 設為 NULL 以完整模擬首次上電狀態。
     */
-    printf("\n[Phase 5] 模擬系統斷電重啟與資料重建測試...\n");
+    printf("\n[Phase 5] Simulating power-off restart and data reconstruction test...\n");
     
-    // 故意將 SRAM 緩衝區清空為 0x00，模擬斷電遺失資料
-    memset(ctx->Written_Data, 0x00, ctx->Amount_of_Data);
+    // 模擬斷電：SRAM 內容消失，指標歸零（如同硬體重置後的初始狀態）
+    ctx->Written_Data = NULL;
     
-    // 重新初始化 (請確保你的 Init_EEPROM 支持同一個實例重複初始化不漏 Memory)
-    printf("執行重新初始化 (從 Flash 重建 SRAM)...\n");
+    // Re-initialize: Init_EEPROM 將重新分配 buffer 並從 Flash 重建 SRAM 數據
+    printf("Performing re-initialization (rebuilding SRAM from Flash)...\n");
     Init_EEPROM(ctx, ctx->Flash_BaseAddr, ctx->Amount_of_Data, ctx->Amount_Pages);
 
-    // 重建後驗證是否與黃金樣本一致
+    // Verify restored data matches the golden sample
     ret = Read_EEPROM(ctx, 0, read_buffer, ctx->Amount_of_Data);
     if (memcmp(golden_buffer, read_buffer, ctx->Amount_of_Data) != 0) {
-        printf("錯誤: Phase 5 模擬重啟後，解析 Flash 恢復的資料不正確!\n");
+        printf("Error: Phase 5 data recovered from Flash after simulated restart is incorrect!\n");
 		while(1);
         return -5;
     }
-    printf("=> Phase 5 通過 (資料從 Flash 成功無損恢復).\n");
+    printf("=> Phase 5 passed (data successfully restored from Flash without loss).\n");
 
     printf("\n============================================\n");
-    printf("=> 所有 EEPROM 測試皆成功通過！\n");
+    printf("=> All EEPROM tests passed successfully!\n");
     printf("============================================\n");
     
-    return 0; // 成功
+    return 0; // Success
 }
