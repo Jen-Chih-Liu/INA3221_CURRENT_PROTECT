@@ -11,9 +11,9 @@
 /*----- Waiting for playback to finish -----*/
 void I2C_WaitPlayEND(void);
 /*----- Waiting for playback to finish -----*/
-UINT8 I2C_WaitExecutionEND(void);
+uint8_t I2C_WaitExecutionEND(void);
 /*----- Ask for status -----*/
-UINT8 I2C_AskStatus(void);
+uint8_t I2C_AskStatus(void);
 
 /*----- Index Play Sample -----*/
 void I2C_IndexPlaySample(void);
@@ -47,16 +47,16 @@ void I2C_ISPUpdateOneResourceSample(void);
 void I2C_ContinuePlaySample(void);
 
 /*----- NSP ISP Update user data Sample -----*/
-UINT8 I2C_UserDataWrite(UINT32 UserWrite_ADDR,PUINT8 ISP_BUFFER,UINT16 WriteSize);
+uint8_t I2C_UserDataWrite(uint32_t UserWrite_ADDR,unsigned char * ISP_BUFFER,uint16_t WriteSize);
 /*----- NSP ISP read user data Sample -----*/
-UINT8 I2C_UserDataRead(UINT32 UserRead_ADDR,PUINT8 ISP_BUFFER,UINT16 ReadSize);
+uint8_t I2C_UserDataRead(uint32_t UserRead_ADDR,unsigned char * ISP_BUFFER,uint16_t ReadSize);
 /*----- NSP ISP Update user space Sample -----*/
 void I2C_ISPUserSpaceWriteAndRead(void);
 
 /*----- NSP Updata touch config -----*/
-UINT8 I2C_TouchUpdataSample(UINT16 u16ConfigSize);
+uint8_t I2C_TouchUpdataSample(uint16_t u16ConfigSize);
 /*----- NSP Load touch config -----*/
-UINT8 I2C_TouchLoadSample(UINT16 u16ConfigSize);
+uint8_t I2C_TouchLoadSample(uint16_t u16ConfigSize);
 
 #endif
 
