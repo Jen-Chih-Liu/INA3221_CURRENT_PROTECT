@@ -27,7 +27,7 @@ volatile uint8_t g_u8GetEndFlag_0 = 1;
 volatile uint8_t g_u8GetErrorFlag_0 = 0;
 volatile uint8_t g_u8Status_0 = MONITOR_IDLE;
 volatile uint16_t g_u16TempData_0[REGISTER_DATA_COUNT];
-Monitor_Data_T au8MonitorData_0[MONITOR_MAX_CHANNEL];
+ Monitor_Data_T au8MonitorData_0[MONITOR_MAX_CHANNEL];
 const uint16_t Shunt_Ratio_Molecular_0[MONITOR_MAX_CHANNEL] = {SHUNT_RATIO_MOLECULAR_0_CH0, SHUNT_RATIO_MOLECULAR_0_CH1, SHUNT_RATIO_MOLECULAR_0_CH2};
 const uint16_t Shunt_Ratio_Denomination_0[MONITOR_MAX_CHANNEL] = {SHUNT_RATIO_DENOMINATOR_0_CH0, SHUNT_RATIO_DENOMINATOR_0_CH1, SHUNT_RATIO_DENOMINATOR_0_CH2};
 /* Shunt Ratio for Monitor 1 */
@@ -40,7 +40,7 @@ volatile uint8_t g_u8GetEndFlag_1 = 1;
 volatile uint8_t g_u8GetErrorFlag_1 = 0;
 volatile uint16_t g_u16TempData_1[REGISTER_DATA_COUNT];
 volatile uint8_t g_u8Status_1 = MONITOR_IDLE;
-Monitor_Data_T au8MonitorData_1[MONITOR_MAX_CHANNEL];
+ Monitor_Data_T au8MonitorData_1[MONITOR_MAX_CHANNEL];
 
 uint32_t TimeCounterMonitorUpdate;
 volatile uint8_t u8MonitorFlag;
@@ -745,8 +745,8 @@ loop6:
 		goto loop6;
 		}
 		#if 1
-		UI2C_WriteByte(UI2C1, ADDRESS_MONIOR_0_7BIT, 0X0);
-    UI2C_ReadMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data_read, 2);
+		UI2C_WriteByte(UI2C1, ADDRESS_MONIOR_1_7BIT, 0X0);
+    UI2C_ReadMultiBytes(UI2C1, ADDRESS_MONIOR_1_7BIT, data_read, 2);
 		if ((data[1]!=data_read[0])||(data[2]!=data_read[1]))
 		{
 		CLK_SysTickDelay(20000);
@@ -833,8 +833,8 @@ loop10:
 		goto loop10;
 		}
 		#if 1
-	  UI2C_WriteByte(UI2C1, ADDRESS_MONIOR_0_7BIT, 0X0e);
-    UI2C_ReadMultiBytes(UI2C1, ADDRESS_MONIOR_0_7BIT, data_read, 2);
+	  UI2C_WriteByte(UI2C1, ADDRESS_MONIOR_1_7BIT, 0X0e);
+    UI2C_ReadMultiBytes(UI2C1, ADDRESS_MONIOR_1_7BIT, data_read, 2);
 				if ((data[1]!=data_read[0])||(data[2]!=data_read[1]))
 		{
 		CLK_SysTickDelay(20000);
