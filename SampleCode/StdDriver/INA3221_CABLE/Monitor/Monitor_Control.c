@@ -446,8 +446,8 @@ loop4:
 
 
     data[0] = 0x0e;
-    data[1] = (ina3221_Warning_Alert_Limit >> 8) & 0xff;;
-    data[2] = (ina3221_Warning_Alert_Limit) & 0xff;
+    data[1] = (ina3221_Warning_Alert_Limit_0x0e >> 8) & 0xff;;
+    data[2] = (ina3221_Warning_Alert_Limit_0x0e) & 0xff;
 loop5:	
     if (I2C_WriteMultiBytes(I2C1, ADDRESS_MONIOR_0_7BIT, data, 3)!=3)
 				{
@@ -823,8 +823,8 @@ loop9:
     
 
     data[0] = 0xe;
-    data[1] = (ina3221_Warning_Alert_Limit >> 8) & 0xff;;
-    data[2] = (ina3221_Warning_Alert_Limit) & 0xff;
+    data[1] = (ina3221_Warning_Alert_Limit_0x0e >> 8) & 0xff;;
+    data[2] = (ina3221_Warning_Alert_Limit_0x0e) & 0xff;
 		
 loop10:    
     if (UI2C_WriteMultiBytes(UI2C1, ADDRESS_MONIOR_1_7BIT, data, 3)!=3)

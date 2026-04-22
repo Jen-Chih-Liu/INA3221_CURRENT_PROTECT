@@ -73,6 +73,8 @@ static uint8_t g_u8OcDebounceCounter =
     0; /* Overcurrent (OC) fault debounce counter                   */
 static uint8_t g_u8UcDebounceCounter =
     0; /* Undercurrent (UC) debounce counter (reserved)             */
+static uint8_t g_u8ZeroCurrentDebounceCounter =
+    0; /* Zero-current fault debounce counter                      */
 volatile uint32_t g_u32WarningCountdownMs =
     0; /* Warning countdown timer in ms; decremented by SysTick     */
 static uint8_t g_bLogSavedForLatch =
@@ -266,6 +268,8 @@ void Warning_Indication_Task(void) {
 
       if (NP23_pid != nsp23_id) {
         BUZZER_PORT->DOUT |= BUZZER_PIN;
+      }else {
+      if (!g_u8NP23Play2Flag) g_u8NP23Play2Flag = 1;
       }
     } else {
       LED_ALARM_PORT->DOUT &= ~LED_ALARM_PIN;
@@ -274,7 +278,28 @@ void Warning_Indication_Task(void) {
         BUZZER_PORT->DOUT &= ~BUZZER_PIN;
       }
     }
-  } else {
+  }
+  else if (g_system_state == STATE_WARN) {
+    /* After latch: LED and Buzzer continue blinking at 2 Hz */
+    if ((g_u16McuRunTimeMillis % 500) < 250) {
+      LED_ALARM_PORT->DOUT |= LED_ALARM_PIN;
+
+      if (NP23_pid != nsp23_id) {
+        BUZZER_PORT->DOUT |= BUZZER_PIN;
+      }else {
+      if (!g_u8NP23Play2Flag) g_u8NP23Play2Flag = 1;
+      }
+
+    } else {
+      LED_ALARM_PORT->DOUT &= ~LED_ALARM_PIN;
+
+      if (NP23_pid != nsp23_id) {
+        BUZZER_PORT->DOUT &= ~BUZZER_PIN;
+      }
+    }
+  }
+  
+  else {
     // LED_ALARM_PORT->DOUT &= ~LED_ALARM_PIN; /* All clear */
     // BUZZER_PORT->DOUT    &= ~BUZZER_PIN;
   }
@@ -475,8 +500,7 @@ void Peripherals_Init(void) {
   /* Lock protected registers */
   SYS_LockReg();
   /* Set safe default output levels before configuring GPIO modes */
-  PS_PGOOD_PORT->DOUT &=
-      ~PS_PGOOD_PIN; // PS_PGOOD low  = normal (not in protection)
+  //PS_PGOOD_PORT->DOUT &=~PS_PGOOD_PIN; // PS_PGOOD low  = normal (not in protection)
   LED_ALARM_PORT->DOUT &= ~LED_ALARM_PIN; // Alarm LED off initially
   BUZZER_PORT->DOUT &= ~BUZZER_PIN;       // Buzzer off initially
   NSP23_RST_PORT->DOUT |=
@@ -485,7 +509,7 @@ void Peripherals_Init(void) {
   /* Configure protection-related GPIO pins as outputs */
   GPIO_SetMode(LED_ALARM_PORT, LED_ALARM_PIN, GPIO_MODE_OUTPUT);
   GPIO_SetMode(BUZZER_PORT, BUZZER_PIN, GPIO_MODE_OUTPUT);
-  GPIO_SetMode(PS_PGOOD_PORT, PS_PGOOD_PIN, GPIO_MODE_OUTPUT);
+  //GPIO_SetMode(PS_PGOOD_PORT, PS_PGOOD_PIN, GPIO_MODE_OUTPUT);
   GPIO_SetMode(NSP23_RST_PORT, NSP23_RST_PIN, GPIO_MODE_OUTPUT);
 
   /* Configure INA_WARNING (PF.2) as input with falling-edge interrupt */
@@ -690,6 +714,23 @@ void Protection_Handler(void) {
           g_u8OcDebounceCounter = 0;
         }
 
+        // 4c. Zero-current debounce (any channel == 0 A)
+        {
+          uint8_t bAnyZero = 0;
+          for (i = 0; i < INA_CHANNEL_COUNT; i++) {
+            if (currents[i] == 0) {
+              bAnyZero = 1;
+              break;
+            }
+          }
+          if (bAnyZero) {
+            if (g_u8ZeroCurrentDebounceCounter < ZERO_CURRENT_DEBOUNCE_COUNT)
+              g_u8ZeroCurrentDebounceCounter++;
+          } else {
+            g_u8ZeroCurrentDebounceCounter = 0;
+          }
+        }
+
 #if 0
 
                 // 4b. Undercurrent debounce (any channel < UC threshold)
@@ -717,6 +758,11 @@ void Protection_Handler(void) {
         eeprom_ram[I2C_REG_STATUS_OFFSET] |= STATUS_BIT_OVERCURRENT;
       else
         eeprom_ram[I2C_REG_STATUS_OFFSET] &= ~STATUS_BIT_OVERCURRENT;
+
+      if (g_u8ZeroCurrentDebounceCounter >= ZERO_CURRENT_DEBOUNCE_COUNT)
+        eeprom_ram[I2C_REG_STATUS_OFFSET] |= STATUS_BIT_ZERO_CURRENT;
+      else
+        eeprom_ram[I2C_REG_STATUS_OFFSET] &= ~STATUS_BIT_ZERO_CURRENT;
       __enable_irq();
 
 #if 0
@@ -755,9 +801,17 @@ void Protection_Handler(void) {
             imb_ch_mask |= (uint8_t)(1 << i);
         }
 
+        /* Zero-current per-channel alert mask */
+        uint8_t zero_ch_mask = 0;
+        for (i = 0; i < INA_CHANNEL_COUNT; i++) {
+          if (currents[i] == 0)
+            zero_ch_mask |= (uint8_t)(1 << i);
+        }
+
         __disable_irq();
         eeprom_ram[I2C_REG_OC_ALERT_CH] = oc_ch_mask;
         eeprom_ram[I2C_REG_IMBALANCE_ALERT_CH] = imb_ch_mask;
+        eeprom_ram[I2C_REG_ZERO_CURRENT_ALERT_CH] = zero_ch_mask;
         __enable_irq();
       }
 
@@ -769,7 +823,8 @@ void Protection_Handler(void) {
       {
         uint8_t bAnyFaultActive =
             (g_u8ImbalanceDebounceCounter >= IMBALANCE_DEBOUNCE_COUNT) ||
-            (g_u8OcDebounceCounter >= OVERCURRENT_DEBOUNCE_COUNT);
+            (g_u8OcDebounceCounter >= OVERCURRENT_DEBOUNCE_COUNT) ||
+            (g_u8ZeroCurrentDebounceCounter >= ZERO_CURRENT_DEBOUNCE_COUNT);
         //(g_u8UcDebounceCounter        >= UNDERCURRENT_DEBOUNCE_COUNT);
 
         if (bAnyFaultActive) {
@@ -800,8 +855,7 @@ void Protection_Handler(void) {
         g_bLogSavedForLatch = 1;
       }
 
-      PS_PGOOD_PORT->DOUT |=
-          PS_PGOOD_PIN; /* Assert PGOOD active high (protection active) */
+     // PS_PGOOD_PORT->DOUT |=PS_PGOOD_PIN; /* Assert PGOOD active high (protection active) */
     }
 
     //__enable_irq();
@@ -813,14 +867,30 @@ void Protection_Handler(void) {
       // Immediately read the latest sensor data to get a complete snapshot
       // Read_Monitor_Data_0();
       // Read_Monitor_Data_1();
-
+      g_system_state = STATE_WARN;
       // Now save the log with the fresh data
       Save_Log_Entry();
       g_bLogSavedForLatch = 1; // Ensure log is saved only once per latch event
-      PS_PGOOD_PORT->DOUT |=
-          PS_PGOOD_PIN; // Set PGOOD to high (Protection state)
+      //PS_PGOOD_PORT->DOUT |=
+        //  PS_PGOOD_PIN; // Set PGOOD to high (Protection state)
+    }
+#if 0
+    /* --- Alarm Indication: continuous LED blink + Buzzer ON --- */
+    if ((g_u16McuRunTimeMillis % 500) < 250) {
+      LED_ALARM_PORT->DOUT |= LED_ALARM_PIN;   /* LED ON  */
+      if (NP23_pid != nsp23_id)
+        BUZZER_PORT->DOUT |= BUZZER_PIN;        /* Buzzer ON  */
+    } else {
+      LED_ALARM_PORT->DOUT &= ~LED_ALARM_PIN;  /* LED OFF */
+      if (NP23_pid != nsp23_id)
+        BUZZER_PORT->DOUT &= ~BUZZER_PIN;       /* Buzzer OFF */
     }
 
+    /* --- Voice: repeat Phase-2 audio clip on NSP23 --- */
+    if (NP23_pid == nsp23_id) {
+      g_u8NP23Play2Flag = 1; /* Request N_PLAY(2) from main loop */
+    }
+#endif
     g_u8HwWarningTriggered = 0; // Clear the trigger flag after handling
   }
 }

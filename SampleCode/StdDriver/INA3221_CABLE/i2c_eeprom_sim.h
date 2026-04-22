@@ -31,6 +31,7 @@
 // Bit[0]=CH1  Bit[1]=CH2  Bit[2]=CH3  Bit[3]=CH4  Bit[4]=CH5  Bit[5]=CH6  Bits[7:6]=0
 #define I2C_REG_OC_ALERT_CH             0x2C    // OC  alert per-channel bitmap; valid when STATUS_BIT_OVERCURRENT is set
 #define I2C_REG_IMBALANCE_ALERT_CH      0x2D    // Imbalance alert per-channel bitmap; valid when STATUS_BIT_IMBALANCE is set
+#define I2C_REG_ZERO_CURRENT_ALERT_CH   0x2E    // Zero-current alert per-channel bitmap; valid when STATUS_BIT_ZERO_CURRENT is set
 
 
 // I2C Register Map Offsets for Asset Data (from readme.md)
@@ -57,6 +58,7 @@
 #define STATUS_BIT_HW_WARNING   (1 << 4)
 #define STATUS_BIT_OVERCURRENT  (1 << 5)    /* Bit5: Any channel current > OC threshold */
 //#define STATUS_BIT_UNDERCURRENT (1 << 6)    /* Bit6: Any channel current < UC threshold */
+#define STATUS_BIT_ZERO_CURRENT (1 << 6)    /* Bit6: Any channel current == 0 A */
 
 // Buzzer Frequencies
 #define BUZZER_PATTERN_OFF      0
@@ -69,8 +71,9 @@
 // Overcurrent / Undercurrent Protection Parameters
 // Thresholds are now configurable at runtime via g_AppConfig.u32OcThreshold / u32UcThreshold (unit: mA).
 // The debounce counts remain compile-time constants.
-#define OVERCURRENT_DEBOUNCE_COUNT  5       /* consecutive detections before OC event is confirmed */
-#define UNDERCURRENT_DEBOUNCE_COUNT 5       /* consecutive detections before UC event is confirmed */
+#define OVERCURRENT_DEBOUNCE_COUNT      5   /* consecutive detections before OC event is confirmed */
+#define UNDERCURRENT_DEBOUNCE_COUNT     5   /* consecutive detections before UC event is confirmed */
+#define ZERO_CURRENT_DEBOUNCE_COUNT     5   /* consecutive detections before zero-current event is confirmed */
 
 // Unified Warning Timing
 #define BUZZER_DELAY_MS     20000   /* LED-only phase before buzzer activates (20 s) */
@@ -95,7 +98,8 @@ enum SystemState
 {
     STATE_NORMAL,
     STATE_WARNING_COUNTDOWN,
-    STATE_LATCHED
+    STATE_LATCHED,
+    STATE_WARN,
 };
 
 /// Application configuration structure
