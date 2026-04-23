@@ -10,6 +10,12 @@
  *                 Phase 1 (0~20 s)   : Alarm LED blinks at 1 Hz, buzzer silent
  *                 Phase 2 (20s~3min) : LED + buzzer blink at 2 Hz
  *                 Latch   (3 min)    : PS_PGOOD asserted, system locked out
+ *
+ * @note     ** DEMO MODE BUILD (DEMO_MODE = 1) **
+ *             - No 3-minute latch; fault is detected immediately.
+ *             - LED + Buzzer blink at 2 Hz while any fault is active.
+ *             - When all faults clear, system auto-recovers to STATE_NORMAL
+ *               and LED / Buzzer are turned off immediately.
  *             - If NSP23 IC is present (PID = 0xACCCCAAA), plays bell sound
  *               N_PLAY(1) in Phase 1 and N_PLAY(2) in Phase 2 instead of buzzer
  *             - Saves event logs to Flash EEPROM (ring buffer, 11 entries max)
@@ -40,6 +46,10 @@
 // --- Macros ---
 #define INA_CHANNEL_COUNT 6
 #define CURRENT_MA_TO_10MA(value) ((value) / 10)
+
+/* DEMO_MODE = 1 : instant fault detection + auto-recovery, no 3-min latch.
+ * Set to 0 to restore the original production behaviour.                   */
+#define DEMO_MODE 1
 
 /* NP23_pid is read by I2C1_Init(); equals nsp23_id when the NSP23 IC is present
  */
@@ -193,9 +203,11 @@ void SysTick_Handler(void) {
     g_u32WarningCountdownMs--; /* Decrement 1 ms each tick */
     
     if (g_u32WarningCountdownMs == 0) {
+#if !DEMO_MODE
       /* Countdown expired -> latch system */
       if (g_system_state == STATE_WARNING_COUNTDOWN)
         g_system_state = STATE_LATCHED;
+#endif /* !DEMO_MODE */
     }
   }
 
@@ -226,6 +238,30 @@ void SysTick_Handler(void) {
 /*  Drives the three-phase protection warning sequence: Phase 1 -> Phase 2 -> Latch */
 /*---------------------------------------------------------------------------------------------------------*/
 void Warning_Indication_Task(void) {
+#if DEMO_MODE
+  /* --- DEMO MODE: no countdown, instant 2 Hz blink while fault is active --- */
+  if (g_system_state == STATE_WARNING_COUNTDOWN) {
+    if ((g_u16McuRunTimeMillis % 500) < 250) {
+      LED_ALARM_PORT->DOUT |= LED_ALARM_PIN;
+      if (NP23_pid != nsp23_id) {
+        BUZZER_PORT->DOUT |= BUZZER_PIN;
+      } else {
+        if (!g_u8NP23Play2Flag) g_u8NP23Play2Flag = 1;
+      }
+    } else {
+      LED_ALARM_PORT->DOUT &= ~LED_ALARM_PIN;
+      if (NP23_pid != nsp23_id) {
+        BUZZER_PORT->DOUT &= ~BUZZER_PIN;
+      }
+    }
+    return;
+  }
+  /* STATE_NORMAL in DEMO mode: ensure outputs are off */
+  LED_ALARM_PORT->DOUT &= ~LED_ALARM_PIN;
+  BUZZER_PORT->DOUT    &= ~BUZZER_PIN;
+  return;
+#endif /* DEMO_MODE */
+
   /* --- Three-phase warning sequence: Phase1(0-20s) -> Phase2(20s-3min) -> Latch --- */
   if (g_u32WarningCountdownMs > 0) {
     if ((LATCH_COUNTDOWN_MS - g_u32WarningCountdownMs) < BUZZER_DELAY_MS) {
@@ -783,6 +819,14 @@ void Protection_Handler(void) {
             (g_u8UcDebounceCounter  >= UNDERCURRENT_DEBOUNCE_COUNT);
 
         if (bAnyFaultActive) {
+#if DEMO_MODE
+          /* DEMO: enter warning state immediately, no countdown timer */
+          if (g_system_state == STATE_NORMAL) {
+            g_system_state = STATE_WARNING_COUNTDOWN;
+            g_u32WarningCountdownMs = 0; /* not used in DEMO mode */
+            g_bLogSavedForLatch = 0;
+          }
+#else
           if (g_system_state == STATE_NORMAL) {
             /* Fault confirmed — start unified 3-minute countdown */
             g_system_state = STATE_WARNING_COUNTDOWN;
@@ -791,13 +835,22 @@ void Protection_Handler(void) {
           }
 
           /* If already in WARNING_COUNTDOWN, let countdown run */
+#endif /* DEMO_MODE */
         } else {
           if (g_system_state == STATE_WARNING_COUNTDOWN) {
+#if DEMO_MODE
+            /* DEMO: fault cleared — auto-recover to NORMAL immediately */
+            g_system_state = STATE_NORMAL;
+            g_u32WarningCountdownMs = 0;
+            LED_ALARM_PORT->DOUT &= ~LED_ALARM_PIN;
+            BUZZER_PORT->DOUT    &= ~BUZZER_PIN;
+#else
             /* All faults cleared before latch — return to normal */
             g_system_state = STATE_NORMAL;
             g_u32WarningCountdownMs = 0;
             LED_ALARM_PORT->DOUT &= ~LED_ALARM_PIN;
             BUZZER_PORT->DOUT &= ~BUZZER_PIN;
+#endif /* DEMO_MODE */
           }
         }
       }
