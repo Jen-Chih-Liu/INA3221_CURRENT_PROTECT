@@ -25,7 +25,7 @@
 
 // EEPROM offsets for configurable protection thresholds (next free space after CalibData 0x10-0x27)
 #define EE_OFFSET_OC_THRESHOLD          0x28    // size: 4 (Overcurrent threshold in mA)
-//#define EE_OFFSET_UC_THRESHOLD          0x2C    // size: 4 (Undercurrent threshold in mA)
+#define EE_OFFSET_UC_THRESHOLD          0x2C    // size: 4 (Undercurrent threshold in mA)
 
 // Per-channel Alert Registers (read-only, updated every monitoring cycle)
 // Bit[0]=CH1  Bit[1]=CH2  Bit[2]=CH3  Bit[3]=CH4  Bit[4]=CH5  Bit[5]=CH6  Bits[7:6]=0

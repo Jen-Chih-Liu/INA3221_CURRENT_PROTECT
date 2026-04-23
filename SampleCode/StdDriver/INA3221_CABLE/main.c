@@ -103,7 +103,7 @@ extern volatile uint8_t u8UPMFFlag; /* UPMF cmd: update manufacturing date */
 extern volatile uint8_t u8UPLTFlag; /* UPLT cmd: update Lot ID */
 extern volatile uint8_t u8UPSNFlag; /* UPSN cmd: update serial number */
 extern volatile uint8_t u8UPOCFlag; /* UPOC cmd: update overcurrent threshold */
-// extern volatile uint8_t u8UPUCFlag;      /* UPUC cmd: update undercurrent
+ extern volatile uint8_t u8UPUCFlag;      /* UPUC cmd: update undercurrent
 // threshold (reserved) */
 
 /* Asset information buffers; loaded from EEPROM and mirrored to eeprom_ram for
@@ -557,9 +557,11 @@ void Config_Load(void) {
                       DEFAULT_LOG_HEAD);
   Init_App_Setting_U32(&eeprom_user, EE_OFFSET_OC_THRESHOLD,
                        &g_AppConfig.u32OcThreshold, DEFAULT_OC_THRESHOLD);
-  // Init_App_Setting_U32(&eeprom_user, EE_OFFSET_UC_THRESHOLD,
-  // &g_AppConfig.u32UcThreshold, DEFAULT_UC_THRESHOLD);
+   Init_App_Setting_U32(&eeprom_user, EE_OFFSET_UC_THRESHOLD,
+   &g_AppConfig.u32UcThreshold, DEFAULT_UC_THRESHOLD);
 
+	
+	
   // --- Initialize Calibration Data from EEPROM ---
   Read_EEPROM(&eeprom_user, EE_OFFSET_CALIB_DATA, (uint8_t *)&g_CalibData,
               sizeof(CalibData_T));
@@ -603,8 +605,8 @@ void Config_Load(void) {
   eeprom_ram[EE_OFFSET_LOG_HEAD] = g_AppConfig.u8LogHead;
   memcpy((void *)&eeprom_ram[EE_OFFSET_OC_THRESHOLD],
          &g_AppConfig.u32OcThreshold, sizeof(uint32_t));
-  // memcpy((void *)&eeprom_ram[EE_OFFSET_UC_THRESHOLD],
-  // &g_AppConfig.u32UcThreshold, sizeof(uint32_t));
+  /* NOTE: UC threshold (EE_OFFSET_UC_THRESHOLD=0x2C) is NOT mirrored to eeprom_ram
+     because 0x2C-0x2E is used by OC/Imbalance/UC alert bitmaps (I2C_REG_OC_ALERT_CH etc.) */
   /* Calibration data (per-channel gain/offset) */
   memcpy((void *)&eeprom_ram[EE_OFFSET_CALIB_DATA], &g_CalibData,
          sizeof(CalibData_T));
@@ -696,7 +698,7 @@ void Protection_Handler(void) {
 #if 1
 
                 // 4b. Undercurrent debounce (any channel < UC threshold)
-                if (min_current < (g_AppConfig.u32UcThreshold / 10))
+                if (min_current <= (g_AppConfig.u32UcThreshold / 10))
                 {
                     if (g_u8UcDebounceCounter < UNDERCURRENT_DEBOUNCE_COUNT)
                         g_u8UcDebounceCounter++;
@@ -916,15 +918,12 @@ void Event_Log_Handler(void) {
                  (uint8_t *)&g_AppConfig.u32OcThreshold, sizeof(uint32_t));
   }
 
-#if 0
-
-    if (u8UPUCFlag == 1)
-    {
-        u8UPUCFlag = 0;
-        Safe_Write_EEPROM(&eeprom_user, EE_OFFSET_UC_THRESHOLD, (uint8_t *)&g_AppConfig.u32UcThreshold, sizeof(uint32_t));
-    }
-
-#endif
+  if (u8UPUCFlag == 1)
+  {
+    u8UPUCFlag = 0;
+    /* UPUC: persist the new undercurrent threshold */
+    Safe_Write_EEPROM(&eeprom_user, EE_OFFSET_UC_THRESHOLD, (uint8_t *)&g_AppConfig.u32UcThreshold, sizeof(uint32_t));
+  }
 
   if (u8UPCDFlag == 1) {
     u8UPCDFlag = 0; /* Clear flag */
@@ -1015,6 +1014,9 @@ int32_t main(void) {
 
   Peripherals_Init();
   Config_Load();
+
+  /* Fix UC threshold to 50 mA regardless of EEPROM value */
+  g_AppConfig.u32UcThreshold = DEFAULT_UC_THRESHOLD;
 
   /* Main application loop */
   while (1) {

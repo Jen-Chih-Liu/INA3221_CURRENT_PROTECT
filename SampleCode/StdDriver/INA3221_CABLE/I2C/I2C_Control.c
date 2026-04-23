@@ -36,7 +36,7 @@ volatile uint8_t u8UPMFFlag = 0;
 volatile uint8_t u8UPLTFlag = 0;
 volatile uint8_t u8UPSNFlag = 0;
 volatile uint8_t u8UPOCFlag = 0;   /* Update OC (Overcurrent) Threshold flag */
-//volatile uint8_t u8UPUCFlag = 0;   /* Update UC (Undercurrent) Threshold flag */
+volatile uint8_t u8UPUCFlag = 0;   /* Update UC (Undercurrent) Threshold flag */
 uint8_t volatile u8RxLen = 0;
 uint8_t volatile eeprom_ram[256]={0x0};
 uint8_t volatile u8EVEN_INDEX_FLAG = 0;
@@ -256,7 +256,7 @@ void I2C_SlaveTRx(I2C_T *i2c, uint32_t u32Status)
             memcpy((void *)&eeprom_ram[EE_OFFSET_OC_THRESHOLD], &g_AppConfig.u32OcThreshold, sizeof(uint32_t));
             u8ReportEEPROMFlag = 0;
         }
-#if 0
+#if 1
         // Command to Update Undercurrent Threshold ("UPUC" + 4-byte uint32 in mA)
         else if ((u16SlvDataLen == CMD_LEN_UPDATE_UC_Threshold) && (memcmp(au8SlvRxData, CMD_UPUC, CMD_LEN_UPDATE_UC_STR) == 0))
         {
