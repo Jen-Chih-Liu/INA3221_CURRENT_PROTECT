@@ -14,7 +14,7 @@
 #define DEFAULT_SW_DEBOUNCE             2
 #define DEFAULT_LOG_HEAD                0
 #define DEFAULT_OC_THRESHOLD            9200    /* unit: mA (= 9.3A) */
-//#define DEFAULT_UC_THRESHOLD            500     /* unit: mA (= 500mA) */
+#define DEFAULT_UC_THRESHOLD            50     /* unit: mA (= 500mA) */
 // Asset Information Sizes (as per readme.md EEPROM layout)
 #define EEPROM_SERIAL_NUMBER_SIZE       16
 #define EEPROM_LOT_ID_SIZE              16 // Corrected from 16
@@ -31,7 +31,7 @@
 // Bit[0]=CH1  Bit[1]=CH2  Bit[2]=CH3  Bit[3]=CH4  Bit[4]=CH5  Bit[5]=CH6  Bits[7:6]=0
 #define I2C_REG_OC_ALERT_CH             0x2C    // OC  alert per-channel bitmap; valid when STATUS_BIT_OVERCURRENT is set
 #define I2C_REG_IMBALANCE_ALERT_CH      0x2D    // Imbalance alert per-channel bitmap; valid when STATUS_BIT_IMBALANCE is set
-#define I2C_REG_ZERO_CURRENT_ALERT_CH   0x2E    // Zero-current alert per-channel bitmap; valid when STATUS_BIT_ZERO_CURRENT is set
+#define I2C_REG_UC_ALERT_CH             0x2E    // UC  alert per-channel bitmap; valid when STATUS_BIT_UNDERCURRENT is set
 
 
 // I2C Register Map Offsets for Asset Data (from readme.md)
@@ -57,8 +57,7 @@
 #define STATUS_BIT_IMBALANCE    (1 << 3)
 #define STATUS_BIT_HW_WARNING   (1 << 4)
 #define STATUS_BIT_OVERCURRENT  (1 << 5)    /* Bit5: Any channel current > OC threshold */
-//#define STATUS_BIT_UNDERCURRENT (1 << 6)    /* Bit6: Any channel current < UC threshold */
-#define STATUS_BIT_ZERO_CURRENT (1 << 6)    /* Bit6: Any channel current == 0 A */
+#define STATUS_BIT_UNDERCURRENT (1 << 6)    /* Bit6: Any channel current < UC threshold */
 
 // Buzzer Frequencies
 #define BUZZER_PATTERN_OFF      0
@@ -73,7 +72,6 @@
 // The debounce counts remain compile-time constants.
 #define OVERCURRENT_DEBOUNCE_COUNT      5   /* consecutive detections before OC event is confirmed */
 #define UNDERCURRENT_DEBOUNCE_COUNT     5   /* consecutive detections before UC event is confirmed */
-#define ZERO_CURRENT_DEBOUNCE_COUNT     5   /* consecutive detections before zero-current event is confirmed */
 
 // Unified Warning Timing
 #define BUZZER_DELAY_MS     20000   /* LED-only phase before buzzer activates (20 s) */
@@ -99,7 +97,7 @@ enum SystemState
     STATE_NORMAL,
     STATE_WARNING_COUNTDOWN,
     STATE_LATCHED,
-    STATE_WARN,
+
 };
 
 /// Application configuration structure
