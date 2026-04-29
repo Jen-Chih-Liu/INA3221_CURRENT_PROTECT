@@ -7,7 +7,7 @@
 // Porting Configuration (Modify according to your M031 hardware wiring)
 // =====================================================================
 #define NSP_I2C_PORT        I2C1    // I2C module used (Default: I2C0)
-#define NSP_I2C_SLAVE_ADDR  0x30    // 7-bit I2C Slave Address of NSP voice chip. Modify based on hardware settings.
+#define NSP_I2C_SLAVE_ADDR  0x30   // 7-bit I2C Slave Address of NSP voice chip. Modify based on hardware settings.
 #define I2C_TIMEOUT_COUNT   0x10000 // Hardware level timeout counter to prevent I2C bus hang
 
 // =====================================================================

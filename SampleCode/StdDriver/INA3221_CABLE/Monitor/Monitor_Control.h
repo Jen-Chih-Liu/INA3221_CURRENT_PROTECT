@@ -82,7 +82,7 @@ extern Monitor_Data_T au8MonitorData_1[MONITOR_MAX_CHANNEL];
 /*-------------------------------------------------------------*/
 /* Global Variables for I2C Communication */
 extern uint32_t TimeCounterMonitorUpdate;
-#define TIMER_MONITOR_UPDATE   200 //unit ms
+#define TIMER_MONITOR_UPDATE   300 //unit ms
 #define ina3221_config 0x7527  //refer ina3221 config spec.extern volatile uint8_t u8MonitorFlag;
 #define ina3221_Warning_Alert_Limit  0x7EE8 //12a
 #define ina3221_Warning_Alert_Limit_0x0e  0x7EEe //12a

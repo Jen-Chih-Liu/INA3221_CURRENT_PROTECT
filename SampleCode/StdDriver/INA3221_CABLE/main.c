@@ -49,7 +49,7 @@
 
 /* DEMO_MODE = 1 : instant fault detection + auto-recovery, no 3-min latch.
  * Set to 0 to restore the original production behaviour.                   */
-#define DEMO_MODE 1
+#define DEMO_MODE 0
 
 /* NP23_pid is read by I2C1_Init(); equals nsp23_id when the NSP23 IC is present
  */
@@ -1080,28 +1080,34 @@ int32_t main(void) {
 
     /* NSP23: play bell sound in Phase 1 when I2C1 is not in interrupt action */
     if ((NP23_pid == nsp23_id) && g_u8NP23PlayFlag && g_u8GetEndFlag_0 == 1) {
+			if (I2C_GET_STATUS(I2C1)==0xF8)
+			{
       I2C_DisableInt(I2C1);
       NVIC_DisableIRQ(I2C1_IRQn);
       g_u8NP23PlayFlag = 0;
-
-      if (I2C_AskStatus() == 0) // CHECK NSP32 IS BUSY OR NOT
+      CLK_SysTickDelay(1000);
+      if (I2C_AskStatus() == 1) // CHECK NSP32 IS BUSY OR NOT
         N_PLAY(1);
 
       I2C_EnableInt(I2C1);
       NVIC_EnableIRQ(I2C1_IRQn);
+		}
     }
 
     /* NSP23: play bell sound in Phase 2 when I2C1 is not in interrupt action */
     if ((NP23_pid == nsp23_id) && g_u8NP23Play2Flag && g_u8GetEndFlag_0 == 1) {
+			if (I2C_GET_STATUS(I2C1)==0xF8)
+			{
       I2C_DisableInt(I2C1);
       NVIC_DisableIRQ(I2C1_IRQn);
       g_u8NP23Play2Flag = 0;
-
-      if (I2C_AskStatus() == 0) // CHECK NSP32 IS BUSY OR NOT
+      CLK_SysTickDelay(1000);
+      if (I2C_AskStatus() == 1) // CHECK NSP32 IS BUSY OR NOT
         N_PLAY(2);
 
       I2C_EnableInt(I2C1);
       NVIC_EnableIRQ(I2C1_IRQn);
+		}
     }
   }
 

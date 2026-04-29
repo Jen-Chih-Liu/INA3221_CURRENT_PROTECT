@@ -344,10 +344,11 @@ void I2C1_Init(void)
 	  
 #if 1
     N_READ_ID(&NP23_pid);
-
+NP23_pid=0xaccccaaa;
     if (NP23_pid == nsp23_id)
     {
         N_SET_VOL(128);
+			  //N_PLAY(2);
     }
 
 #endif
